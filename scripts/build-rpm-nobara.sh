@@ -32,5 +32,15 @@ fi
 
 echo "Installing $RPM_PATH"
 sudo dnf install -y "$RPM_PATH"
-sudo systemctl restart sunshine || true
-systemctl status sunshine --no-pager || true
+
+# Sunshine ships a user service, not a system unit.
+systemctl --user daemon-reload
+if systemctl --user cat sunshine.service >/dev/null 2>&1; then
+  systemctl --user enable --now sunshine.service
+  systemctl --user status sunshine.service --no-pager
+elif systemctl --user cat app-dev.lizardbyte.app.Sunshine.service >/dev/null 2>&1; then
+  systemctl --user enable --now app-dev.lizardbyte.app.Sunshine.service
+  systemctl --user status app-dev.lizardbyte.app.Sunshine.service --no-pager
+else
+  echo "No Sunshine user service unit found. Start manually with: sunshine" >&2
+fi
