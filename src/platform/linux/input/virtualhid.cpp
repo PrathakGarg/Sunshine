@@ -31,6 +31,7 @@ namespace platf {
     }
     if (config::input.native_pen_touch && capabilities.supports_trackpad) {
       caps |= platform_caps::trackpad;
+      caps |= platform_caps::pinch;
     }
     if (virtualhid::configured_gamepad_supports_controller_extensions()) {
       caps |= platform_caps::controller_touch;

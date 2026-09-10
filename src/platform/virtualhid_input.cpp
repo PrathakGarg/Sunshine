@@ -507,6 +507,66 @@ namespace platf::virtualhid {
       log_failure("sync libvirtualhid trackpad contacts"sv, context.trackpad->sync_contacts());
     }
 
+    constexpr std::int32_t kPinchFingerA = 1;
+    constexpr std::int32_t kPinchFingerB = 2;
+    constexpr float kPinchContactSize = 0.02F;
+    constexpr float kPinchMinSpan = 0.04F;
+    constexpr float kPinchMaxSpan = 0.5F;
+    constexpr float kPinchMaxSpanDelta = 0.01F;
+
+    trackpad_input_t make_pinch_finger(std::int32_t finger_id, std::uint8_t event_type, float x, float y) {
+      return trackpad_input_t {
+        event_type,
+        LI_ROT_UNKNOWN,
+        static_cast<std::uint32_t>(finger_id),
+        x,
+        y,
+        1.0F,
+        kPinchContactSize,
+        kPinchContactSize,
+      };
+    }
+
+    void apply_pinch_contacts(client_context_t &context, std::uint8_t touch_event_type, float span, float center_x, float center_y) {
+      const float half_span = span / 2.0F;
+      const float finger_y = std::clamp(center_y, 0.0F, 1.0F);
+      const auto finger_a = make_pinch_finger(kPinchFingerA, touch_event_type, std::clamp(center_x - half_span, 0.0F, 1.0F), finger_y);
+      const auto finger_b = make_pinch_finger(kPinchFingerB, touch_event_type, std::clamp(center_x + half_span, 0.0F, 1.0F), finger_y);
+
+      if (touch_event_type == LI_TOUCH_EVENT_DOWN) {
+        context.active_trackpad_contacts.insert(kPinchFingerA);
+        context.active_trackpad_contacts.insert(kPinchFingerB);
+      }
+
+      context.trackpad_contact_state[kPinchFingerA] = finger_a;
+      context.trackpad_contact_state[kPinchFingerB] = finger_b;
+
+      log_failure("submit libvirtualhid trackpad contact"sv, context.trackpad->place_contact(trackpad_contact(finger_a)));
+      log_failure("submit libvirtualhid trackpad contact"sv, context.trackpad->place_contact(trackpad_contact(finger_b)));
+      context.trackpad_submitted_state[kPinchFingerA] = finger_a;
+      context.trackpad_submitted_state[kPinchFingerB] = finger_b;
+      sync_trackpad_contacts(context);
+    }
+
+    void end_pinch_contacts(client_context_t &context) {
+      if (!context.trackpad) {
+        return;
+      }
+
+      for (const auto finger_id : {kPinchFingerA, kPinchFingerB}) {
+        if (!context.active_trackpad_contacts.contains(finger_id)) {
+          continue;
+        }
+
+        context.trackpad_contact_state.erase(finger_id);
+        context.trackpad_submitted_state.erase(finger_id);
+        log_failure("release libvirtualhid trackpad contact"sv, context.trackpad->release_contact(finger_id));
+        context.active_trackpad_contacts.erase(finger_id);
+      }
+
+      sync_trackpad_contacts(context);
+    }
+
   }  // namespace
 
   input_context_t::input_context_t():
@@ -981,6 +1041,43 @@ namespace platf::virtualhid {
     return context.active_trackpad_contacts.size();
   }
 
+  void trackpad_pinch_update(client_context_t &context, const pinch_input_t &pinch) {
+    if (!context.trackpad) {
+      return;
+    }
+
+    switch (pinch.eventType) {
+      case LI_PINCH_EVENT_BEGIN:
+        if (context.pinch_active) {
+          end_pinch_contacts(context);
+        }
+        context.pinch_active = true;
+        context.pinch_span = std::clamp(pinch.span, kPinchMinSpan, kPinchMaxSpan);
+        apply_pinch_contacts(context, LI_TOUCH_EVENT_DOWN, context.pinch_span, pinch.centerX, pinch.centerY);
+        return;
+      case LI_PINCH_EVENT_UPDATE:
+        if (!context.pinch_active) {
+          return;
+        }
+        {
+          const auto target_span = std::clamp(pinch.span, kPinchMinSpan, kPinchMaxSpan);
+          context.pinch_span = std::clamp(target_span, context.pinch_span - kPinchMaxSpanDelta, context.pinch_span + kPinchMaxSpanDelta);
+          apply_pinch_contacts(context, LI_TOUCH_EVENT_MOVE, context.pinch_span, pinch.centerX, pinch.centerY);
+        }
+        return;
+      case LI_PINCH_EVENT_END:
+        if (!context.pinch_active) {
+          return;
+        }
+        end_pinch_contacts(context);
+        context.pinch_active = false;
+        context.pinch_span = 0.0F;
+        return;
+      default:
+        return;
+    }
+  }
+
   void trackpad_update(client_context_t &context, const trackpad_input_t &trackpad, bool flush_contacts) {
     if (!context.trackpad) {
       return;
@@ -1226,6 +1323,10 @@ namespace platf {
 
   std::size_t trackpad_active_contact_count(client_input_t *input) {
     return virtualhid::trackpad_active_contact_count(virtualhid::get_client_context(input));
+  }
+
+  void trackpad_pinch_update(client_input_t *input, const pinch_input_t &pinch) {
+    virtualhid::trackpad_pinch_update(virtualhid::get_client_context(input), pinch);
   }
 
   void pen_update(client_input_t *input, const touch_port_t &touch_port, const pen_input_t &pen) {

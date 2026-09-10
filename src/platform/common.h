@@ -409,6 +409,10 @@ namespace platf {
      * @brief Capability bit indicating virtual trackpad support.
      */
     constexpr caps_t trackpad = 0x04;  // Trackpad events
+    /**
+     * @brief Capability bit indicating host-synthesized pinch gesture support.
+     */
+    constexpr caps_t pinch = 0x08;  // Pinch gesture events
   };  // namespace platform_caps
 
   /**
@@ -500,6 +504,16 @@ namespace platf {
    * @brief Virtual trackpad contact event data from the client.
    */
   using trackpad_input_t = touch_input_t;
+
+  /**
+   * @brief Pinch gesture event data from the client.
+   */
+  struct pinch_input_t {
+    std::uint8_t eventType;  ///< Pinch phase (begin, update, or end).
+    float span;  ///< Normalized distance between the two virtual fingers.
+    float centerX;  ///< Normalized horizontal center of the pinch.
+    float centerY;  ///< Normalized vertical center of the pinch.
+  };
 
   /**
    * @brief Pen tablet event data from the client.
@@ -1257,6 +1271,13 @@ namespace platf {
    * @return Active trackpad contact count.
    */
   std::size_t trackpad_active_contact_count(client_input_t *input);
+
+  /**
+   * @brief Send a pinch gesture event to the OS.
+   * @param input The client-specific input context.
+   * @param pinch The pinch gesture event.
+   */
+  void trackpad_pinch_update(client_input_t *input, const pinch_input_t &pinch);
 
   /**
    * @brief Send a pen event to the OS.

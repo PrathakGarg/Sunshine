@@ -12,10 +12,10 @@ fi
 
 git submodule update --init third-party/moonlight-common-c third-party/libvirtualhid
 
-TRACKPAD_PATCH="$REPO_ROOT/packaging/linux/patches/moonlight-common-c-trackpad.patch"
-if ! grep -q 'SS_TRACKPAD_MAGIC' "$REPO_ROOT/third-party/moonlight-common-c/src/Input.h"; then
-  echo "Applying moonlight-common-c trackpad protocol patch"
-  patch -d "$REPO_ROOT/third-party/moonlight-common-c" -p1 < "$TRACKPAD_PATCH"
+INPUT_EXTENSIONS_PATCH="$REPO_ROOT/packaging/linux/patches/moonlight-common-c-input-extensions.patch"
+if ! grep -q 'SS_PINCH_MAGIC' "$REPO_ROOT/third-party/moonlight-common-c/src/Input.h"; then
+  echo "Applying moonlight-common-c input extensions patch"
+  patch -d "$REPO_ROOT/third-party/moonlight-common-c" -p1 < "$INPUT_EXTENSIONS_PATCH"
 fi
 
 TRACKPAD_JUMP_PATCH="$REPO_ROOT/packaging/linux/patches/libvirtualhid-trackpad-jump.patch"

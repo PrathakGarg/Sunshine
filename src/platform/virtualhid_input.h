@@ -72,6 +72,8 @@ namespace platf::virtualhid {
     std::set<std::int32_t> active_trackpad_contacts;  ///< Active trackpad contacts.
     std::map<std::int32_t, trackpad_input_t> trackpad_contact_state;  ///< Latest state per trackpad contact.
     std::map<std::int32_t, trackpad_input_t> trackpad_submitted_state;  ///< Last submitted state per trackpad contact.
+    bool pinch_active = false;  ///< Whether a pinch gesture is active.
+    float pinch_span = 0.0F;  ///< Current normalized span of the active pinch.
     std::set<lvh::PenButton> pressed_pen_buttons;  ///< Active pen tablet buttons.
   };
 
@@ -335,6 +337,14 @@ namespace platf::virtualhid {
    * @return Active trackpad contact count.
    */
   std::size_t trackpad_active_contact_count(const client_context_t &context);
+
+  /**
+   * @brief Submit a pinch gesture event.
+   *
+   * @param context Client context.
+   * @param pinch Pinch gesture event.
+   */
+  void trackpad_pinch_update(client_context_t &context, const pinch_input_t &pinch);
 
   /**
    * @brief Submit a pen event.

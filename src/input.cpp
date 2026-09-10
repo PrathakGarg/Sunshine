@@ -577,6 +577,20 @@ namespace input {
   }
 
   /**
+   * @brief Prints a pinch gesture packet.
+   * @param packet The pinch packet.
+   */
+  void print_pinch(PSS_PINCH_PACKET packet) {
+    BOOST_LOG(debug)
+      << "--begin pinch packet--"sv << std::endl
+      << "eventType ["sv << util::hex(packet->eventType).to_string_view() << ']' << std::endl
+      << "span ["sv << from_netfloat(packet->span) << ']' << std::endl
+      << "centerX ["sv << from_netfloat(packet->centerX) << ']' << std::endl
+      << "centerY ["sv << from_netfloat(packet->centerY) << ']' << std::endl
+      << "--end pinch packet--"sv;
+  }
+
+  /**
    * @brief Prints a touch packet.
    * @param packet The touch packet.
    */
@@ -710,6 +724,9 @@ namespace input {
         break;
       case SS_TRACKPAD_MAGIC:
         print_trackpad((PSS_TOUCH_PACKET) payload);
+        break;
+      case SS_PINCH_MAGIC:
+        print_pinch((PSS_PINCH_PACKET) payload);
         break;
       case SS_PEN_MAGIC:
         print((PSS_PEN_PACKET) payload);
@@ -1482,6 +1499,16 @@ namespace input {
     platf::trackpad_update(input->client_context.get(), trackpad_input_from_packet(packet), flush_contacts);
   }
 
+  void pinch_passthrough(std::shared_ptr<input_t> &input, PSS_PINCH_PACKET packet) {
+    platf::pinch_input_t pinch {
+      packet->eventType,
+      from_clamped_netfloat(packet->span, 0.04f, 0.5f),
+      from_clamped_netfloat(packet->centerX, 0.0f, 1.0f),
+      from_clamped_netfloat(packet->centerY, 0.0f, 1.0f),
+    };
+    platf::trackpad_pinch_update(input->client_context.get(), pinch);
+  }
+
   void passthrough_next_message(std::shared_ptr<input_t> input);
 
   void dispatch_input_queue(std::shared_ptr<input_t> input) {
@@ -1793,6 +1820,8 @@ namespace input {
         return validate_fixed_input_packet<SS_TOUCH_PACKET>(packet, declared_size);
       case SS_TRACKPAD_MAGIC:
         return validate_fixed_input_packet<SS_TRACKPAD_PACKET>(packet, declared_size);
+      case SS_PINCH_MAGIC:
+        return validate_fixed_input_packet<SS_PINCH_PACKET>(packet, declared_size);
       case SS_PEN_MAGIC:
         return validate_fixed_input_packet<SS_PEN_PACKET>(packet, declared_size);
       case SS_CONTROLLER_ARRIVAL_MAGIC:
@@ -2222,6 +2251,9 @@ namespace input {
       case SS_TRACKPAD_MAGIC:
         trackpad_passthrough(input, (PSS_TOUCH_PACKET) payload);
         break;
+      case SS_PINCH_MAGIC:
+        pinch_passthrough(input, (PSS_PINCH_PACKET) payload);
+        break;
       case SS_PEN_MAGIC:
         passthrough(input, (PSS_PEN_PACKET) payload);
         break;
@@ -2260,19 +2292,12 @@ namespace input {
       return;
     }
 
-    const auto trackpad_packet = util::endian::little(header.magic) == SS_TRACKPAD_MAGIC;
-
     {
       std::lock_guard<std::mutex> lg(input->input_queue_lock);
       input->input_queue.push_back(std::move(input_data));
       if (!input->input_dispatch_pending) {
         input->input_dispatch_pending = true;
-        if (trackpad_packet) {
-          // Defer one scheduler tick so paired pinch contacts can arrive first.
-          task_pool.pushDelayed(dispatch_input_queue, 0ms, input);
-        } else {
-          task_pool.push(dispatch_input_queue, input);
-        }
+        task_pool.push(dispatch_input_queue, input);
       }
     }
   }
