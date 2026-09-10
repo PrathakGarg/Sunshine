@@ -18,7 +18,7 @@ if ! grep -q 'SS_TRACKPAD_MAGIC' "$REPO_ROOT/third-party/moonlight-common-c/src/
   patch -d "$REPO_ROOT/third-party/moonlight-common-c" -p1 < "$TRACKPAD_PATCH"
 fi
 
-./scripts/linux_build.sh --step=deps,cmake,build,package
+./scripts/linux_build.sh
 
 RPM_PATH="$(find "$REPO_ROOT/build" -maxdepth 1 -name 'Sunshine-*.rpm' -print -quit)"
 if [[ -z "$RPM_PATH" ]]; then
