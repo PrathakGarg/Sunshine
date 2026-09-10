@@ -301,7 +301,7 @@ namespace input {
     bool input_dispatch_pending = false;  ///< Whether an input dispatch task is already queued.
 
     thread_pool_util::ThreadPool::task_id_t mouse_left_button_timeout;  ///< Mouse left button timeout.
-    thread_pool_util::TaskPool::task_id_t trackpad_flush_timeout;  ///< Deferred trackpad contact commit timer.
+    thread_pool_util::ThreadPool::task_id_t trackpad_flush_timeout;  ///< Deferred trackpad contact commit timer.
 
     input::touch_port_t touch_port;  ///< Touch coordinate bounds for the current stream.
 
@@ -1505,6 +1505,8 @@ namespace input {
   void trackpad_passthrough(std::shared_ptr<input_t> &input, PSS_TOUCH_PACKET packet, bool flush_contacts = true) {
     platf::trackpad_update(input->client_context.get(), trackpad_input_from_packet(packet), flush_contacts);
   }
+
+  void passthrough_next_message(std::shared_ptr<input_t> input);
 
   void dispatch_input_queue(std::shared_ptr<input_t> input) {
     for (;;) {

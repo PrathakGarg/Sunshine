@@ -65,7 +65,7 @@ index efdda3f..d2954af 100644
       * @brief Get the most recently submitted touch contact.
       *
 diff --git a/src/platform/linux/uhid_backend.cpp b/src/platform/linux/uhid_backend.cpp
-index 8f01d32..c9618b5 100644
+index 8f01d32..8d5beb2 100644
 --- a/src/platform/linux/uhid_backend.cpp
 +++ b/src/platform/linux/uhid_backend.cpp
 @@ -85,6 +85,10 @@ namespace lvh::detail {
@@ -212,6 +212,60 @@ index 8f01d32..c9618b5 100644
          return sync();
        }
  
+@@ -2217,6 +2284,26 @@ namespace lvh::detail {
+         return sync();
+       }
+ 
++      OperationStatus emit_trackpad_tool_buttons() {
++        const auto count = contacts_.size();
++        if (const auto status = emit_event(EV_KEY, BTN_TOUCH, count == 0 ? 0 : 1); !status.ok()) {
++          return status;
++        }
++        if (const auto status = emit_event(EV_KEY, BTN_TOOL_FINGER, count == 1 ? 1 : 0); !status.ok()) {
++          return status;
++        }
++        if (const auto status = emit_event(EV_KEY, BTN_TOOL_DOUBLETAP, count == 2 ? 1 : 0); !status.ok()) {
++          return status;
++        }
++        if (const auto status = emit_event(EV_KEY, BTN_TOOL_TRIPLETAP, count == 3 ? 1 : 0); !status.ok()) {
++          return status;
++        }
++        if (const auto status = emit_event(EV_KEY, BTN_TOOL_QUADTAP, count == 4 ? 1 : 0); !status.ok()) {
++          return status;
++        }
++        return emit_event(EV_KEY, BTN_TOOL_QUINTTAP, count >= 5 ? 1 : 0);
++      }
++
+     private:
+       std::optional<int> slot_for_contact(std::int32_t contact_id) {
+         if (const auto it = contacts_.find(contact_id); it != contacts_.end()) {
+@@ -2246,26 +2333,6 @@ namespace lvh::detail {
+         return emit_event(EV_ABS, ABS_MT_SLOT, slot);
+       }
+ 
+-      OperationStatus emit_trackpad_tool_buttons() {
+-        const auto count = contacts_.size();
+-        if (const auto status = emit_event(EV_KEY, BTN_TOUCH, count == 0 ? 0 : 1); !status.ok()) {
+-          return status;
+-        }
+-        if (const auto status = emit_event(EV_KEY, BTN_TOOL_FINGER, count == 1 ? 1 : 0); !status.ok()) {
+-          return status;
+-        }
+-        if (const auto status = emit_event(EV_KEY, BTN_TOOL_DOUBLETAP, count == 2 ? 1 : 0); !status.ok()) {
+-          return status;
+-        }
+-        if (const auto status = emit_event(EV_KEY, BTN_TOOL_TRIPLETAP, count == 3 ? 1 : 0); !status.ok()) {
+-          return status;
+-        }
+-        if (const auto status = emit_event(EV_KEY, BTN_TOOL_QUADTAP, count == 4 ? 1 : 0); !status.ok()) {
+-          return status;
+-        }
+-        return emit_event(EV_KEY, BTN_TOOL_QUINTTAP, count >= 5 ? 1 : 0);
+-      }
+-
+       std::string device_name_;
+       std::map<std::int32_t, int> contacts_;
+       int current_slot_ = -1;
 @@ -2334,6 +2401,13 @@ namespace lvh::detail {
          return emit_touch_button(pressed);
        }
