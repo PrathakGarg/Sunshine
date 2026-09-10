@@ -18,7 +18,8 @@ if ! grep -q 'SS_TRACKPAD_MAGIC' "$REPO_ROOT/third-party/moonlight-common-c/src/
   patch -d "$REPO_ROOT/third-party/moonlight-common-c" -p1 < "$TRACKPAD_PATCH"
 fi
 
-./scripts/linux_build.sh
+# Avoid upgrading system packages (e.g. dkms-nvidia) and skip CUDA runfile install.
+./scripts/linux_build.sh --skip-package-update --skip-cuda
 
 RPM_PATH="$(find "$REPO_ROOT/build" -maxdepth 1 -name 'Sunshine-*.rpm' -print -quit)"
 if [[ -z "$RPM_PATH" ]]; then

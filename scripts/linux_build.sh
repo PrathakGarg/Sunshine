@@ -26,6 +26,7 @@ skip_cleanup=0
 skip_cuda=0
 skip_libva=0
 skip_package=0
+skip_package_update=0
 sudo_cmd="sudo"
 ubuntu_test_repo=0
 step="all"
@@ -192,6 +193,7 @@ Options:
   --skip-cuda              Skip CUDA installation.
   --skip-libva             Skip libva installation. This will automatically be enabled if passing --appimage-build.
   --skip-package           Skip creating DEB, or RPM package.
+  --skip-package-update    Refresh package metadata only; do not upgrade installed packages.
   --ubuntu-test-repo       Install ppa:ubuntu-toolchain-r/test repo on Ubuntu.
   --step                   Which step(s) to run: deps, cmake, validation, build, package, cleanup, or all (default: all)
 
@@ -245,6 +247,7 @@ while getopts ":hs-:" opt; do
         skip-cuda) skip_cuda=1 ;;
         skip-libva) skip_libva=1 ;;
         skip-package) skip_package=1 ;;
+        skip-package-update) skip_package_update=1 ;;
         sudo-off) sudo_cmd="" ;;
         ubuntu-test-repo) ubuntu_test_repo=1 ;;
         step=*)
@@ -584,7 +587,11 @@ function run_step_deps() {
   echo "Running step: Install dependencies"
 
   # Update the package list
-  $package_update_command
+  if [[ "$skip_package_update" == 1 ]] && [[ "$distro" == "fedora" ]]; then
+    ${sudo_cmd} dnf makecache
+  else
+    $package_update_command
+  fi
 
   if [[ "$distro" == "arch" ]]; then
     add_arch_deps
