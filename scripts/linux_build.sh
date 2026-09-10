@@ -868,6 +868,13 @@ elif grep -q "PLATFORM_ID=\"platform:f42\"" /etc/os-release; then
   package_install_command="${sudo_cmd} dnf install -y"
   gcc_version="14"
   nvm_node=0
+elif grep -q "PLATFORM_ID=\"platform:f44\"" /etc/os-release; then
+  distro="fedora"
+  version="44"
+  package_update_command="${sudo_cmd} dnf update -y"
+  package_install_command="${sudo_cmd} dnf install -y"
+  gcc_version="14"
+  nvm_node=0
 elif grep -q '^ID=fedora$' /etc/os-release && grep -q '^VERSION_ID=43$' /etc/os-release; then
   distro="fedora"
   version="43"
