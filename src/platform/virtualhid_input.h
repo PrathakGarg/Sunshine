@@ -309,8 +309,16 @@ namespace platf::virtualhid {
    *
    * @param context Client context.
    * @param trackpad Trackpad contact event.
+   * @param flush_contacts Whether to commit deferred contact updates immediately.
    */
-  void trackpad_update(client_context_t &context, const trackpad_input_t &trackpad);
+  void trackpad_update(client_context_t &context, const trackpad_input_t &trackpad, bool flush_contacts = true);
+
+  /**
+   * @brief Commit deferred trackpad contact updates.
+   *
+   * @param context Client context.
+   */
+  void trackpad_flush_contacts(client_context_t &context);
 
   /**
    * @brief Submit a pen event.

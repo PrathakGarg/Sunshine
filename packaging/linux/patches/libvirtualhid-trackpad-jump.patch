@@ -65,10 +65,79 @@ index efdda3f..d2954af 100644
       * @brief Get the most recently submitted touch contact.
       *
 diff --git a/src/platform/linux/uhid_backend.cpp b/src/platform/linux/uhid_backend.cpp
-index 8f01d32..c200a27 100644
+index 8f01d32..f2a8c91 100644
 --- a/src/platform/linux/uhid_backend.cpp
 +++ b/src/platform/linux/uhid_backend.cpp
-@@ -2111,6 +2111,15 @@ namespace lvh::detail {
+@@ -84,6 +84,10 @@ namespace lvh::detail {
+ 
+     constexpr auto touch_axis_max_x = 19200;
+     constexpr auto touch_axis_max_y = 10800;
++    constexpr auto trackpad_width_mm = 69;
++    constexpr auto trackpad_height_mm = 50;
++    constexpr auto trackpad_axis_resolution_x = touch_axis_max_x / trackpad_width_mm;
++    constexpr auto trackpad_axis_resolution_y = touch_axis_max_y / trackpad_height_mm;
+     constexpr auto touch_pressure_max = 255;
+     constexpr auto touch_max_contacts = 10;
+     constexpr auto touch_tracking_id_count = 65535U;
+@@ -1588,8 +1592,58 @@ namespace lvh::detail {
+       return enable_evdev_property(device, INPUT_PROP_DIRECT, "direct touch");
+     }
+ 
++    OperationStatus configure_evdev_trackpad_axes(libevdev *device) {
++      if (const auto status = enable_evdev_type(device, EV_KEY, "touch key events"); !status.ok()) {
++        return status;
++      }
++      if (const auto status = enable_evdev_type(device, EV_ABS, "touch absolute events"); !status.ok()) {
++        return status;
++      }
++
++      auto slot = make_absinfo(0, touch_max_contacts - 1);
++      if (const auto status = enable_evdev_code(device, EV_ABS, ABS_MT_SLOT, "touch absolute axis", &slot); !status.ok()) {
++        return status;
++      }
++      auto x = make_absinfo(0, touch_axis_max_x, 1, 0, trackpad_axis_resolution_x);
++      if (const auto status = enable_evdev_code(device, EV_ABS, ABS_X, "touch absolute axis", &x); !status.ok()) {
++        return status;
++      }
++      auto y = make_absinfo(0, touch_axis_max_y, 1, 0, trackpad_axis_resolution_y);
++      if (const auto status = enable_evdev_code(device, EV_ABS, ABS_Y, "touch absolute axis", &y); !status.ok()) {
++        return status;
++      }
++      auto mt_x = make_absinfo(0, touch_axis_max_x, 1, 0, trackpad_axis_resolution_x);
++      if (const auto status = enable_evdev_code(device, EV_ABS, ABS_MT_POSITION_X, "touch absolute axis", &mt_x); !status.ok()) {
++        return status;
++      }
++      auto mt_y = make_absinfo(0, touch_axis_max_y, 1, 0, trackpad_axis_resolution_y);
++      if (const auto status = enable_evdev_code(device, EV_ABS, ABS_MT_POSITION_Y, "touch absolute axis", &mt_y); !status.ok()) {
++        return status;
++      }
++      auto tracking = make_absinfo(0, 65535);
++      if (const auto status = enable_evdev_code(device, EV_ABS, ABS_MT_TRACKING_ID, "touch absolute axis", &tracking); !status.ok()) {
++        return status;
++      }
++      auto pressure = make_absinfo(0, touch_pressure_max);
++      if (const auto status = enable_evdev_code(device, EV_ABS, ABS_PRESSURE, "touch absolute axis", &pressure); !status.ok()) {
++        return status;
++      }
++      auto mt_pressure = make_absinfo(0, touch_pressure_max);
++      if (const auto status = enable_evdev_code(device, EV_ABS, ABS_MT_PRESSURE, "touch absolute axis", &mt_pressure); !status.ok()) {
++        return status;
++      }
++      auto orientation = make_absinfo(-90, 90);
++      if (const auto status = enable_evdev_code(device, EV_ABS, ABS_MT_ORIENTATION, "touch absolute axis", &orientation); !status.ok()) {
++        return status;
++      }
++
++      return enable_evdev_code(device, EV_KEY, BTN_TOUCH, "touch button");
++    }
++
+     OperationStatus configure_evdev_trackpad(libevdev *device) {
+-      if (const auto status = configure_evdev_touch_axes(device); !status.ok()) {
++      if (const auto status = configure_evdev_trackpad_axes(device); !status.ok()) {
+         return status;
+       }
+ 
+@@ -2111,6 +2165,15 @@ namespace lvh::detail {
        }
  
      protected:
@@ -84,15 +153,16 @@ index 8f01d32..c200a27 100644
        OperationStatus create_touch_device(DeviceId id, const DeviceProfile &profile) {
          device_name_ = profile.name;
          return create_uinput_device(profile, id);
-@@ -2153,27 +2162,35 @@ namespace lvh::detail {
+@@ -2153,27 +2216,36 @@ namespace lvh::detail {
          const auto x = scale_normalized_axis(contact.x, touch_axis_max_x);
          const auto y = scale_normalized_axis(contact.y, touch_axis_max_y);
          const auto pressure = scale_normalized_axis(contact.pressure, touch_pressure_max);
 -        if (const auto status = emit_event(EV_ABS, ABS_X, x); !status.ok()) {
 -          return status;
-+        // Trackpads use legacy ABS_X/ABS_Y for the pointer. Updating those while multiple
-+        // contacts are active makes libinput discard touch jumps on the virtual trackpad.
-+        const bool emit_legacy_axes = !update_trackpad_buttons || contacts_.size() <= 1;
++        // Trackpads must not emit legacy ABS_X/ABS_Y. libinput treats those as the pointer
++        // position and logs "Touch jump detected and discarded" when they jump between
++        // multitouch contacts in the same frame.
++        const bool emit_legacy_axes = !update_trackpad_buttons;
 +        if (emit_legacy_axes) {
 +          if (const auto status = emit_event(EV_ABS, ABS_X, x); !status.ok()) {
 +            return status;
@@ -128,7 +198,7 @@ index 8f01d32..c200a27 100644
          return sync();
        }
  
-@@ -2334,6 +2351,10 @@ namespace lvh::detail {
+@@ -2334,6 +2406,10 @@ namespace lvh::detail {
          return emit_touch_button(pressed);
        }
  

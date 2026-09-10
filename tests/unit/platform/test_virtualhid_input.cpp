@@ -793,7 +793,7 @@ TEST_F(VirtualHidDeviceTest, TranslatesTouchscreenLifecycleAndGeometry) {
 TEST_F(VirtualHidDeviceTest, TranslatesTrackpadPinchContacts) {
   platf::trackpad_input_t finger_a {LI_TOUCH_EVENT_DOWN, LI_ROT_UNKNOWN, 1, 0.425F, 0.5F, 1.0F, 0.0F, 0.0F};
   platf::trackpad_input_t finger_b {LI_TOUCH_EVENT_DOWN, LI_ROT_UNKNOWN, 2, 0.575F, 0.5F, 1.0F, 0.0F, 0.0F};
-  platf::virtualhid::trackpad_update(*client(), finger_a);
+  platf::virtualhid::trackpad_update(*client(), finger_a, false);
   platf::virtualhid::trackpad_update(*client(), finger_b);
   EXPECT_TRUE(client()->active_trackpad_contacts.contains(1));
   EXPECT_TRUE(client()->active_trackpad_contacts.contains(2));

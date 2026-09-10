@@ -1237,7 +1237,13 @@ namespace platf {
    * @param input The client-specific input context.
    * @param trackpad The trackpad contact event.
    */
-  void trackpad_update(client_input_t *input, const trackpad_input_t &trackpad);
+  void trackpad_update(client_input_t *input, const trackpad_input_t &trackpad, bool flush_contacts = true);
+
+  /**
+   * @brief Commit deferred trackpad contact updates.
+   * @param input The client-specific input context.
+   */
+  void trackpad_flush_contacts(client_input_t *input);
 
   /**
    * @brief Send a pen event to the OS.

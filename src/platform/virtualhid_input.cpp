@@ -945,7 +945,11 @@ namespace platf::virtualhid {
     }
   }
 
-  void trackpad_update(client_context_t &context, const trackpad_input_t &trackpad) {
+  void trackpad_flush_contacts(client_context_t &context) {
+    flush_trackpad_contacts(context);
+  }
+
+  void trackpad_update(client_context_t &context, const trackpad_input_t &trackpad, bool flush_contacts) {
     if (!context.trackpad) {
       return;
     }
@@ -974,7 +978,9 @@ namespace platf::virtualhid {
           if (trackpad.eventType == LI_TOUCH_EVENT_DOWN) {
             context.active_trackpad_contacts.insert(contact_id);
           }
-          flush_trackpad_contacts(context);
+          if (flush_contacts) {
+            flush_trackpad_contacts(context);
+          }
           return;
         }
       default:
@@ -1166,8 +1172,12 @@ namespace platf {
     virtualhid::touch_update(virtualhid::get_client_context(input), touch_port, touch);
   }
 
-  void trackpad_update(client_input_t *input, const trackpad_input_t &trackpad) {
-    virtualhid::trackpad_update(virtualhid::get_client_context(input), trackpad);
+  void trackpad_update(client_input_t *input, const trackpad_input_t &trackpad, bool flush_contacts) {
+    virtualhid::trackpad_update(virtualhid::get_client_context(input), trackpad, flush_contacts);
+  }
+
+  void trackpad_flush_contacts(client_input_t *input) {
+    virtualhid::trackpad_flush_contacts(virtualhid::get_client_context(input));
   }
 
   void pen_update(client_input_t *input, const touch_port_t &touch_port, const pen_input_t &pen) {

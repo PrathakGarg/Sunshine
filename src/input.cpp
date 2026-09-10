@@ -1451,9 +1451,9 @@ namespace input {
    * @param input The input context pointer.
    * @param packet The trackpad packet.
    */
-  void trackpad_passthrough(std::shared_ptr<input_t> &input, PSS_TOUCH_PACKET packet) {
+  platf::trackpad_input_t trackpad_input_from_packet(PSS_TOUCH_PACKET packet) {
     if (packet->eventType == LI_TOUCH_EVENT_CANCEL_ALL) {
-      platf::trackpad_input_t trackpad {
+      return {
         LI_TOUCH_EVENT_CANCEL_ALL,
         LI_ROT_UNKNOWN,
         0,
@@ -1463,11 +1463,9 @@ namespace input {
         0.0F,
         0.0F,
       };
-      platf::trackpad_update(input->client_context.get(), trackpad);
-      return;
     }
 
-    platf::trackpad_input_t trackpad {
+    return {
       packet->eventType,
       util::endian::little(packet->rotation),
       util::endian::little(packet->pointerId),
@@ -1477,8 +1475,10 @@ namespace input {
       from_clamped_netfloat(packet->contactAreaMajor, 0.0f, 1.0f),
       from_clamped_netfloat(packet->contactAreaMinor, 0.0f, 1.0f),
     };
+  }
 
-    platf::trackpad_update(input->client_context.get(), trackpad);
+  void trackpad_passthrough(std::shared_ptr<input_t> &input, PSS_TOUCH_PACKET packet, bool flush_contacts = true) {
+    platf::trackpad_update(input->client_context.get(), trackpad_input_from_packet(packet), flush_contacts);
   }
 
   /**
@@ -2062,7 +2062,7 @@ namespace input {
       case SS_TOUCH_MAGIC:
         return batch((PSS_TOUCH_PACKET) dest, (PSS_TOUCH_PACKET) src);
       case SS_TRACKPAD_MAGIC:
-        return batch((PSS_TOUCH_PACKET) dest, (PSS_TOUCH_PACKET) src);
+        return batch_result_e::terminate_batch;
       case SS_PEN_MAGIC:
         return batch((PSS_PEN_PACKET) dest, (PSS_PEN_PACKET) src);
       case SS_CONTROLLER_TOUCH_MAGIC:
@@ -2083,6 +2083,7 @@ namespace input {
     // 'entry' backs the 'payload' pointer, so they must remain in scope together
     std::vector<uint8_t> entry;
     PNV_INPUT_HEADER payload;
+    std::vector<std::vector<uint8_t>> trackpad_entries;
 
     // Lock the input queue while batching, but release it before sending
     // the input to the OS. This avoids potentially lengthy lock contention
@@ -2100,24 +2101,62 @@ namespace input {
       payload = (PNV_INPUT_HEADER) entry.data();
       input->input_queue.pop_front();
 
-      // Try to batch with remaining items on the queue
-      auto i = input->input_queue.begin();
-      while (i != input->input_queue.end()) {
-        auto batchable_entry = *i;
-        auto batchable_payload = (PNV_INPUT_HEADER) batchable_entry.data();
+      if (util::endian::little(payload->magic) == SS_TRACKPAD_MAGIC) {
+        trackpad_entries.push_back(std::move(entry));
+        while (!input->input_queue.empty()) {
+          const auto next_payload = (PNV_INPUT_HEADER) input->input_queue.front().data();
+          if (util::endian::little(next_payload->magic) != SS_TRACKPAD_MAGIC) {
+            break;
+          }
 
-        auto batch_result = batch(payload, batchable_payload);
-        if (batch_result == batch_result_e::terminate_batch) {
-          // Stop batching
-          break;
-        } else if (batch_result == batch_result_e::batched) {
-          // Erase this entry since it was batched
-          i = input->input_queue.erase(i);
-        } else {
-          // We couldn't batch this entry, but try to batch later entries.
-          i++;
+          trackpad_entries.push_back(std::move(input->input_queue.front()));
+          input->input_queue.pop_front();
+        }
+      } else {
+        // Try to batch with remaining items on the queue
+        auto i = input->input_queue.begin();
+        while (i != input->input_queue.end()) {
+          auto batchable_entry = *i;
+          auto batchable_payload = (PNV_INPUT_HEADER) batchable_entry.data();
+
+          auto batch_result = batch(payload, batchable_payload);
+          if (batch_result == batch_result_e::terminate_batch) {
+            // Stop batching
+            break;
+          } else if (batch_result == batch_result_e::batched) {
+            // Erase this entry since it was batched
+            i = input->input_queue.erase(i);
+          } else {
+            // We couldn't batch this entry, but try to batch later entries.
+            i++;
+          }
         }
       }
+    }
+
+    if (!trackpad_entries.empty()) {
+      bool needs_flush = false;
+      for (const auto &trackpad_entry : trackpad_entries) {
+        const auto trackpad_payload = (PSS_TOUCH_PACKET) (PNV_INPUT_HEADER) trackpad_entry.data();
+        input::print((void *) trackpad_payload);
+        switch (trackpad_payload->eventType) {
+          case LI_TOUCH_EVENT_CANCEL_ALL:
+          case LI_TOUCH_EVENT_UP:
+          case LI_TOUCH_EVENT_CANCEL:
+          case LI_TOUCH_EVENT_HOVER_LEAVE:
+            trackpad_passthrough(input, trackpad_payload);
+            break;
+          default:
+            trackpad_passthrough(input, trackpad_payload, false);
+            needs_flush = true;
+            break;
+        }
+      }
+
+      if (needs_flush) {
+        platf::trackpad_flush_contacts(input->client_context.get());
+      }
+      return;
     }
 
     // Print the final input packet
