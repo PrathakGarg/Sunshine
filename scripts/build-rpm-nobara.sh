@@ -21,6 +21,7 @@ fi
 TRACKPAD_JUMP_PATCH="$REPO_ROOT/packaging/linux/patches/libvirtualhid-trackpad-jump.patch"
 if ! grep -q 'sync_contacts' "$REPO_ROOT/third-party/libvirtualhid/src/platform/linux/uhid_backend.cpp"; then
   echo "Applying libvirtualhid trackpad jump patch"
+  git -C "$REPO_ROOT/third-party/libvirtualhid" checkout -- src/
   patch -d "$REPO_ROOT/third-party/libvirtualhid" -p1 < "$TRACKPAD_JUMP_PATCH"
 fi
 
