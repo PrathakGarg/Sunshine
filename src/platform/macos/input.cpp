@@ -43,11 +43,6 @@ namespace platf {
     if (config::input.native_pen_touch && (capabilities.supports_touchscreen || capabilities.supports_pen_tablet)) {
       caps |= platform_caps::pen_touch;
     }
-    if (config::input.native_pen_touch && capabilities.supports_trackpad) {
-      caps |= platform_caps::trackpad;
-      caps |= platform_caps::pinch;
-    }
-
     return caps;
   }
 

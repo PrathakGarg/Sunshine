@@ -559,24 +559,6 @@ namespace input {
   }
 
   /**
-   * @brief Prints a trackpad packet.
-   * @param packet The trackpad packet.
-   */
-  void print_trackpad(PSS_TOUCH_PACKET packet) {
-    BOOST_LOG(debug)
-      << "--begin trackpad packet--"sv << std::endl
-      << "eventType ["sv << util::hex(packet->eventType).to_string_view() << ']' << std::endl
-      << "pointerId ["sv << util::hex(packet->pointerId).to_string_view() << ']' << std::endl
-      << "x ["sv << from_netfloat(packet->x) << ']' << std::endl
-      << "y ["sv << from_netfloat(packet->y) << ']' << std::endl
-      << "pressureOrDistance ["sv << from_netfloat(packet->pressureOrDistance) << ']' << std::endl
-      << "contactAreaMajor ["sv << from_netfloat(packet->contactAreaMajor) << ']' << std::endl
-      << "contactAreaMinor ["sv << from_netfloat(packet->contactAreaMinor) << ']' << std::endl
-      << "rotation ["sv << (uint32_t) packet->rotation << ']' << std::endl
-      << "--end trackpad packet--"sv;
-  }
-
-  /**
    * @brief Prints a pinch gesture packet.
    * @param packet The pinch packet.
    */
@@ -721,9 +703,6 @@ namespace input {
         break;
       case SS_TOUCH_MAGIC:
         print((PSS_TOUCH_PACKET) payload);
-        break;
-      case SS_TRACKPAD_MAGIC:
-        print_trackpad((PSS_TOUCH_PACKET) payload);
         break;
       case SS_PINCH_MAGIC:
         print_pinch((PSS_PINCH_PACKET) payload);
@@ -1464,41 +1443,6 @@ namespace input {
     platf::touch_update(input->client_context.get(), pointer_data->touch_port, touch);
   }
 
-  /**
-   * @brief Called to pass a trackpad message to the platform backend.
-   * @param input The input context pointer.
-   * @param packet The trackpad packet.
-   */
-  platf::trackpad_input_t trackpad_input_from_packet(PSS_TOUCH_PACKET packet) {
-    if (packet->eventType == LI_TOUCH_EVENT_CANCEL_ALL) {
-      return {
-        LI_TOUCH_EVENT_CANCEL_ALL,
-        LI_ROT_UNKNOWN,
-        0,
-        0.0F,
-        0.0F,
-        0.0F,
-        0.0F,
-        0.0F,
-      };
-    }
-
-    return {
-      packet->eventType,
-      util::endian::little(packet->rotation),
-      util::endian::little(packet->pointerId),
-      from_clamped_netfloat(packet->x, 0.0f, 1.0f),
-      from_clamped_netfloat(packet->y, 0.0f, 1.0f),
-      from_clamped_netfloat(packet->pressureOrDistance, 0.0f, 1.0f),
-      from_clamped_netfloat(packet->contactAreaMajor, 0.0f, 1.0f),
-      from_clamped_netfloat(packet->contactAreaMinor, 0.0f, 1.0f),
-    };
-  }
-
-  void trackpad_passthrough(std::shared_ptr<input_t> &input, PSS_TOUCH_PACKET packet, bool flush_contacts = true) {
-    platf::trackpad_update(input->client_context.get(), trackpad_input_from_packet(packet), flush_contacts);
-  }
-
   void pinch_passthrough(std::shared_ptr<input_t> &input, PSS_PINCH_PACKET packet) {
     platf::pinch_input_t pinch {
       packet->eventType,
@@ -1506,7 +1450,7 @@ namespace input {
       from_clamped_netfloat(packet->centerX, 0.0f, 1.0f),
       from_clamped_netfloat(packet->centerY, 0.0f, 1.0f),
     };
-    platf::trackpad_pinch_update(input->client_context.get(), pinch);
+    platf::pinch_update(input->client_context.get(), pinch);
   }
 
   void passthrough_next_message(std::shared_ptr<input_t> input);
@@ -1818,8 +1762,6 @@ namespace input {
         return validate_fixed_input_packet<NV_MULTI_CONTROLLER_PACKET>(packet, declared_size);
       case SS_TOUCH_MAGIC:
         return validate_fixed_input_packet<SS_TOUCH_PACKET>(packet, declared_size);
-      case SS_TRACKPAD_MAGIC:
-        return validate_fixed_input_packet<SS_TRACKPAD_PACKET>(packet, declared_size);
       case SS_PINCH_MAGIC:
         return validate_fixed_input_packet<SS_PINCH_PACKET>(packet, declared_size);
       case SS_PEN_MAGIC:
@@ -2105,8 +2047,6 @@ namespace input {
         return batch((PNV_MULTI_CONTROLLER_PACKET) dest, (PNV_MULTI_CONTROLLER_PACKET) src);
       case SS_TOUCH_MAGIC:
         return batch((PSS_TOUCH_PACKET) dest, (PSS_TOUCH_PACKET) src);
-      case SS_TRACKPAD_MAGIC:
-        return batch_result_e::terminate_batch;
       case SS_PEN_MAGIC:
         return batch((PSS_PEN_PACKET) dest, (PSS_PEN_PACKET) src);
       case SS_CONTROLLER_TOUCH_MAGIC:
@@ -2127,8 +2067,6 @@ namespace input {
     // 'entry' backs the 'payload' pointer, so they must remain in scope together
     std::vector<uint8_t> entry;
     PNV_INPUT_HEADER payload;
-    std::vector<std::vector<uint8_t>> trackpad_entries;
-
     // Lock the input queue while batching, but release it before sending
     // the input to the OS. This avoids potentially lengthy lock contention
     // in the control stream thread while input is being processed by the OS.
@@ -2145,73 +2083,24 @@ namespace input {
       payload = (PNV_INPUT_HEADER) entry.data();
       input->input_queue.pop_front();
 
-      if (util::endian::little(payload->magic) == SS_TRACKPAD_MAGIC) {
-        trackpad_entries.push_back(std::move(entry));
-        while (!input->input_queue.empty()) {
-          const auto next_payload = (PNV_INPUT_HEADER) input->input_queue.front().data();
-          if (util::endian::little(next_payload->magic) != SS_TRACKPAD_MAGIC) {
-            break;
-          }
+      // Try to batch with remaining items on the queue
+      auto i = input->input_queue.begin();
+      while (i != input->input_queue.end()) {
+        auto batchable_entry = *i;
+        auto batchable_payload = (PNV_INPUT_HEADER) batchable_entry.data();
 
-          trackpad_entries.push_back(std::move(input->input_queue.front()));
-          input->input_queue.pop_front();
-        }
-      } else {
-        // Try to batch with remaining items on the queue
-        auto i = input->input_queue.begin();
-        while (i != input->input_queue.end()) {
-          auto batchable_entry = *i;
-          auto batchable_payload = (PNV_INPUT_HEADER) batchable_entry.data();
-
-          auto batch_result = batch(payload, batchable_payload);
-          if (batch_result == batch_result_e::terminate_batch) {
-            // Stop batching
-            break;
-          } else if (batch_result == batch_result_e::batched) {
-            // Erase this entry since it was batched
-            i = input->input_queue.erase(i);
-          } else {
-            // We couldn't batch this entry, but try to batch later entries.
-            i++;
-          }
+        auto batch_result = batch(payload, batchable_payload);
+        if (batch_result == batch_result_e::terminate_batch) {
+          // Stop batching
+          break;
+        } else if (batch_result == batch_result_e::batched) {
+          // Erase this entry since it was batched
+          i = input->input_queue.erase(i);
+        } else {
+          // We couldn't batch this entry, but try to batch later entries.
+          i++;
         }
       }
-    }
-
-    if (!trackpad_entries.empty()) {
-      bool needs_flush = false;
-      bool needs_sync = false;
-      for (const auto &trackpad_entry : trackpad_entries) {
-        const auto trackpad_payload = (PSS_TOUCH_PACKET) (PNV_INPUT_HEADER) trackpad_entry.data();
-        input::print((void *) trackpad_payload);
-        switch (trackpad_payload->eventType) {
-          case LI_TOUCH_EVENT_CANCEL_ALL:
-            trackpad_passthrough(input, trackpad_payload);
-            break;
-          case LI_TOUCH_EVENT_UP:
-          case LI_TOUCH_EVENT_CANCEL:
-          case LI_TOUCH_EVENT_HOVER_LEAVE:
-            trackpad_passthrough(input, trackpad_payload, false);
-            needs_sync = true;
-            break;
-          default:
-            trackpad_passthrough(input, trackpad_payload, false);
-            needs_flush = true;
-            break;
-        }
-      }
-
-      if (needs_flush) {
-        const auto active_contacts = platf::trackpad_active_contact_count(input->client_context.get());
-        if (active_contacts >= 2 || trackpad_entries.size() >= 2) {
-          platf::trackpad_flush_contacts(input->client_context.get());
-        }
-      }
-
-      if (needs_sync) {
-        platf::trackpad_sync_contacts(input->client_context.get());
-      }
-      return;
     }
 
     // Print the final input packet
@@ -2247,9 +2136,6 @@ namespace input {
         break;
       case SS_TOUCH_MAGIC:
         passthrough(input, (PSS_TOUCH_PACKET) payload);
-        break;
-      case SS_TRACKPAD_MAGIC:
-        trackpad_passthrough(input, (PSS_TOUCH_PACKET) payload);
         break;
       case SS_PINCH_MAGIC:
         pinch_passthrough(input, (PSS_PINCH_PACKET) payload);

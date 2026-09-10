@@ -66,14 +66,8 @@ namespace platf::virtualhid {
 
     input_context_t *global = nullptr;  ///< Shared global input context.
     std::unique_ptr<lvh::Touchscreen> touch;  ///< Per-client touchscreen.
-    std::unique_ptr<lvh::Trackpad> trackpad;  ///< Per-client virtual trackpad.
     std::unique_ptr<lvh::PenTablet> pen;  ///< Per-client pen tablet.
     std::set<std::int32_t> active_touches;  ///< Active touchscreen contacts.
-    std::set<std::int32_t> active_trackpad_contacts;  ///< Active trackpad contacts.
-    std::map<std::int32_t, trackpad_input_t> trackpad_contact_state;  ///< Latest state per trackpad contact.
-    std::map<std::int32_t, trackpad_input_t> trackpad_submitted_state;  ///< Last submitted state per trackpad contact.
-    bool pinch_active = false;  ///< Whether a pinch gesture is active.
-    float pinch_span = 0.0F;  ///< Current normalized span of the active pinch.
     std::set<lvh::PenButton> pressed_pen_buttons;  ///< Active pen tablet buttons.
   };
 
@@ -306,45 +300,6 @@ namespace platf::virtualhid {
    * @param touch Touch event.
    */
   void touch_update(client_context_t &context, const touch_port_t &touch_port, const touch_input_t &touch);
-
-  /**
-   * @brief Submit a trackpad contact event.
-   *
-   * @param context Client context.
-   * @param trackpad Trackpad contact event.
-   * @param flush_contacts Whether to commit deferred contact updates immediately.
-   */
-  void trackpad_update(client_context_t &context, const trackpad_input_t &trackpad, bool flush_contacts = true);
-
-  /**
-   * @brief Commit deferred trackpad contact updates.
-   *
-   * @param context Client context.
-   */
-  void trackpad_flush_contacts(client_context_t &context);
-
-  /**
-   * @brief Commit pending trackpad slot updates without placing contacts.
-   *
-   * @param context Client context.
-   */
-  void trackpad_sync_contacts(client_context_t &context);
-
-  /**
-   * @brief Get the number of active trackpad contacts.
-   *
-   * @param context Client context.
-   * @return Active trackpad contact count.
-   */
-  std::size_t trackpad_active_contact_count(const client_context_t &context);
-
-  /**
-   * @brief Submit a pinch gesture event.
-   *
-   * @param context Client context.
-   * @param pinch Pinch gesture event.
-   */
-  void trackpad_pinch_update(client_context_t &context, const pinch_input_t &pinch);
 
   /**
    * @brief Submit a pen event.

@@ -21,15 +21,6 @@ if ! grep -q 'SS_PINCH_MAGIC' "$REPO_ROOT/third-party/moonlight-common-c/src/Inp
   exit 1
 fi
 
-TRACKPAD_JUMP_PATCH="$REPO_ROOT/packaging/linux/patches/libvirtualhid-trackpad-jump.patch"
-echo "Applying libvirtualhid trackpad jump patch"
-git -C "$REPO_ROOT/third-party/libvirtualhid" checkout -- src/
-patch -d "$REPO_ROOT/third-party/libvirtualhid" -p1 < "$TRACKPAD_JUMP_PATCH"
-if ! grep -q 'trackpad_axis_resolution_x' "$REPO_ROOT/third-party/libvirtualhid/src/platform/linux/uhid_backend.cpp"; then
-  echo "libvirtualhid trackpad jump patch failed to apply" >&2
-  exit 1
-fi
-
 # Avoid upgrading system packages (e.g. dkms-nvidia) and skip CUDA runfile install.
 ./scripts/linux_build.sh --skip-package-update --skip-cuda
 

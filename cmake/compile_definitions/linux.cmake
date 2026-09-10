@@ -301,7 +301,8 @@ set(LIBEVDEV_CUSTOM_INCLUDE_DIR "${EVDEV_INCLUDE_DIR}")
 set(LIBEVDEV_CUSTOM_LIBRARY "${EVDEV_LIBRARY}")
 
 list(APPEND PLATFORM_TARGET_FILES
-        "${CMAKE_SOURCE_DIR}/src/platform/linux/input/virtualhid.cpp")
+        "${CMAKE_SOURCE_DIR}/src/platform/linux/input/virtualhid.cpp"
+        "${CMAKE_SOURCE_DIR}/src/platform/linux/input/pinch.cpp")
 
 # AppImage and Flatpak
 if (${SUNSHINE_BUILD_APPIMAGE})
