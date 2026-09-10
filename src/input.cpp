@@ -558,10 +558,10 @@ namespace input {
   }
 
   /**
-   * @brief Prints a touch packet.
-   * @param packet The touch packet.
+   * @brief Prints a trackpad packet.
+   * @param packet The trackpad packet.
    */
-  void print(PSS_TRACKPAD_PACKET packet) {
+  void print_trackpad(PSS_TOUCH_PACKET packet) {
     BOOST_LOG(debug)
       << "--begin trackpad packet--"sv << std::endl
       << "eventType ["sv << util::hex(packet->eventType).to_string_view() << ']' << std::endl
@@ -575,6 +575,10 @@ namespace input {
       << "--end trackpad packet--"sv;
   }
 
+  /**
+   * @brief Prints a touch packet.
+   * @param packet The touch packet.
+   */
   void print(PSS_TOUCH_PACKET packet) {
     BOOST_LOG(debug)
       << "--begin touch packet--"sv << std::endl
@@ -704,7 +708,7 @@ namespace input {
         print((PSS_TOUCH_PACKET) payload);
         break;
       case SS_TRACKPAD_MAGIC:
-        print((PSS_TRACKPAD_PACKET) payload);
+        print_trackpad((PSS_TOUCH_PACKET) payload);
         break;
       case SS_PEN_MAGIC:
         print((PSS_PEN_PACKET) payload);
@@ -1447,7 +1451,7 @@ namespace input {
    * @param input The input context pointer.
    * @param packet The trackpad packet.
    */
-  void passthrough(std::shared_ptr<input_t> &input, PSS_TRACKPAD_PACKET packet) {
+  void trackpad_passthrough(std::shared_ptr<input_t> &input, PSS_TOUCH_PACKET packet) {
     if (packet->eventType == LI_TOUCH_EVENT_CANCEL_ALL) {
       platf::trackpad_input_t trackpad {
         LI_TOUCH_EVENT_CANCEL_ALL,
@@ -1938,10 +1942,6 @@ namespace input {
     return batch_result_e::batched;
   }
 
-  batch_result_e batch(PSS_TRACKPAD_PACKET dest, PSS_TRACKPAD_PACKET src) {
-    return batch((PSS_TOUCH_PACKET) dest, (PSS_TOUCH_PACKET) src);
-  }
-
   /**
    * @brief Batch two pen messages.
    * @param dest The original packet to batch into.
@@ -2062,7 +2062,7 @@ namespace input {
       case SS_TOUCH_MAGIC:
         return batch((PSS_TOUCH_PACKET) dest, (PSS_TOUCH_PACKET) src);
       case SS_TRACKPAD_MAGIC:
-        return batch((PSS_TRACKPAD_PACKET) dest, (PSS_TRACKPAD_PACKET) src);
+        return batch((PSS_TOUCH_PACKET) dest, (PSS_TOUCH_PACKET) src);
       case SS_PEN_MAGIC:
         return batch((PSS_PEN_PACKET) dest, (PSS_PEN_PACKET) src);
       case SS_CONTROLLER_TOUCH_MAGIC:
@@ -2155,7 +2155,7 @@ namespace input {
         passthrough(input, (PSS_TOUCH_PACKET) payload);
         break;
       case SS_TRACKPAD_MAGIC:
-        passthrough(input, (PSS_TRACKPAD_PACKET) payload);
+        trackpad_passthrough(input, (PSS_TOUCH_PACKET) payload);
         break;
       case SS_PEN_MAGIC:
         passthrough(input, (PSS_PEN_PACKET) payload);
