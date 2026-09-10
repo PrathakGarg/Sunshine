@@ -321,6 +321,14 @@ namespace platf::virtualhid {
   void trackpad_flush_contacts(client_context_t &context);
 
   /**
+   * @brief Get the number of active trackpad contacts.
+   *
+   * @param context Client context.
+   * @return Active trackpad contact count.
+   */
+  std::size_t trackpad_active_contact_count(const client_context_t &context);
+
+  /**
    * @brief Submit a pen event.
    *
    * @param context Client context.

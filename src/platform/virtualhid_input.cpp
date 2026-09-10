@@ -949,6 +949,10 @@ namespace platf::virtualhid {
     flush_trackpad_contacts(context);
   }
 
+  std::size_t trackpad_active_contact_count(const client_context_t &context) {
+    return context.active_trackpad_contacts.size();
+  }
+
   void trackpad_update(client_context_t &context, const trackpad_input_t &trackpad, bool flush_contacts) {
     if (!context.trackpad) {
       return;
@@ -1178,6 +1182,10 @@ namespace platf {
 
   void trackpad_flush_contacts(client_input_t *input) {
     virtualhid::trackpad_flush_contacts(virtualhid::get_client_context(input));
+  }
+
+  std::size_t trackpad_active_contact_count(client_input_t *input) {
+    return virtualhid::trackpad_active_contact_count(virtualhid::get_client_context(input));
   }
 
   void pen_update(client_input_t *input, const touch_port_t &touch_port, const pen_input_t &pen) {

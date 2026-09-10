@@ -1246,6 +1246,13 @@ namespace platf {
   void trackpad_flush_contacts(client_input_t *input);
 
   /**
+   * @brief Get the number of active trackpad contacts.
+   * @param input The client-specific input context.
+   * @return Active trackpad contact count.
+   */
+  std::size_t trackpad_active_contact_count(client_input_t *input);
+
+  /**
    * @brief Send a pen event to the OS.
    * @param input The client-specific input context.
    * @param touch_port The current viewport for translating to screen coordinates.
