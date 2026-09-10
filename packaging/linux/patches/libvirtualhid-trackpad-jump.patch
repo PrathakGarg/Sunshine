@@ -65,10 +65,26 @@ index efdda3f..d2954af 100644
       * @brief Get the most recently submitted touch contact.
       *
 diff --git a/src/platform/linux/uhid_backend.cpp b/src/platform/linux/uhid_backend.cpp
-index 8f01d32..1a0e9f6 100644
+index 8f01d32..c200a27 100644
 --- a/src/platform/linux/uhid_backend.cpp
 +++ b/src/platform/linux/uhid_backend.cpp
-@@ -2153,27 +2153,35 @@ namespace lvh::detail {
+@@ -2111,6 +2111,15 @@ namespace lvh::detail {
+       }
+ 
+     protected:
++      /**
++       * @brief Commit pending touch or trackpad contact events.
++       *
++       * @return Submit status.
++       */
++      OperationStatus sync_touch_contacts() {
++        return sync();
++      }
++
+       OperationStatus create_touch_device(DeviceId id, const DeviceProfile &profile) {
+         device_name_ = profile.name;
+         return create_uinput_device(profile, id);
+@@ -2153,27 +2162,35 @@ namespace lvh::detail {
          const auto x = scale_normalized_axis(contact.x, touch_axis_max_x);
          const auto y = scale_normalized_axis(contact.y, touch_axis_max_y);
          const auto pressure = scale_normalized_axis(contact.pressure, touch_pressure_max);
@@ -112,12 +128,12 @@ index 8f01d32..1a0e9f6 100644
          return sync();
        }
  
-@@ -2334,6 +2342,10 @@ namespace lvh::detail {
+@@ -2334,6 +2351,10 @@ namespace lvh::detail {
          return emit_touch_button(pressed);
        }
  
 +      OperationStatus sync_contacts() override {
-+        return sync();
++        return sync_touch_contacts();
 +      }
 +
        OperationStatus close() override {
