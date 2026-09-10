@@ -301,7 +301,6 @@ namespace input {
     bool input_dispatch_pending = false;  ///< Whether an input dispatch task is already queued.
 
     thread_pool_util::ThreadPool::task_id_t mouse_left_button_timeout;  ///< Mouse left button timeout.
-    thread_pool_util::ThreadPool::task_id_t trackpad_flush_timeout;  ///< Deferred trackpad contact commit timer.
 
     input::touch_port_t touch_port;  ///< Touch coordinate bounds for the current stream.
 
@@ -1479,29 +1478,6 @@ namespace input {
     };
   }
 
-  void flush_trackpad_contacts_now(const std::shared_ptr<input_t> &input) {
-    if (input->trackpad_flush_timeout) {
-      task_pool.cancel(input->trackpad_flush_timeout);
-      input->trackpad_flush_timeout = nullptr;
-    }
-
-    platf::trackpad_flush_contacts(input->client_context.get());
-  }
-
-  void schedule_trackpad_flush(const std::shared_ptr<input_t> &input) {
-    if (input->trackpad_flush_timeout) {
-      task_pool.cancel(input->trackpad_flush_timeout);
-    }
-
-    input->trackpad_flush_timeout = task_pool.pushDelayed(
-      [input]() {
-        input->trackpad_flush_timeout = nullptr;
-        platf::trackpad_flush_contacts(input->client_context.get());
-      },
-      std::chrono::milliseconds(3)
-    ).task_id;
-  }
-
   void trackpad_passthrough(std::shared_ptr<input_t> &input, PSS_TOUCH_PACKET packet, bool flush_contacts = true) {
     platf::trackpad_update(input->client_context.get(), trackpad_input_from_packet(packet), flush_contacts);
   }
@@ -2193,7 +2169,7 @@ namespace input {
       }
 
       if (needs_flush) {
-        schedule_trackpad_flush(input);
+        platf::trackpad_flush_contacts(input->client_context.get());
       }
       return;
     }
@@ -2351,10 +2327,6 @@ namespace input {
   void reset(std::shared_ptr<input_t> &input) {
     task_pool.cancel(key_press_repeat_id);
     task_pool.cancel(input->mouse_left_button_timeout);
-    if (input->trackpad_flush_timeout) {
-      task_pool.cancel(input->trackpad_flush_timeout);
-      input->trackpad_flush_timeout = nullptr;
-    }
 
     // Ensure input is synchronous, by using the task_pool
     task_pool.push(reset_input_state, input);

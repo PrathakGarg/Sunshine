@@ -453,19 +453,6 @@ namespace platf::virtualhid {
       context.trackpad_contact_state.clear();
     }
 
-    constexpr float kTrackpadMaxStep = 0.015F;
-
-    trackpad_input_t clamp_trackpad_step(const trackpad_input_t &trackpad, const trackpad_input_t &previous) {
-      auto clamp_axis = [](float previous_value, float next_value) {
-        return std::clamp(next_value, previous_value - kTrackpadMaxStep, previous_value + kTrackpadMaxStep);
-      };
-
-      auto clamped = trackpad;
-      clamped.x = clamp_axis(previous.x, trackpad.x);
-      clamped.y = clamp_axis(previous.y, trackpad.y);
-      return clamped;
-    }
-
     lvh::TouchContact trackpad_contact(const trackpad_input_t &trackpad) {
       lvh::TouchContact contact;
       contact.id = static_cast<std::int32_t>(trackpad.pointerId);
@@ -987,14 +974,7 @@ namespace platf::virtualhid {
       case LI_TOUCH_EVENT_MOVE:
         {
           const auto contact_id = static_cast<std::int32_t>(trackpad.pointerId);
-          auto next_trackpad = trackpad;
-          if (trackpad.eventType == LI_TOUCH_EVENT_MOVE) {
-            if (const auto previous = context.trackpad_contact_state.find(contact_id); previous != context.trackpad_contact_state.end()) {
-              next_trackpad = clamp_trackpad_step(trackpad, previous->second);
-            }
-          }
-
-          context.trackpad_contact_state[contact_id] = next_trackpad;
+          context.trackpad_contact_state[contact_id] = trackpad;
           if (trackpad.eventType == LI_TOUCH_EVENT_DOWN) {
             context.active_trackpad_contacts.insert(contact_id);
           }
