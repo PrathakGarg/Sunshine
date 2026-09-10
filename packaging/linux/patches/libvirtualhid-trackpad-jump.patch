@@ -1,8 +1,74 @@
+diff --git a/src/core/backend.hpp b/src/core/backend.hpp
+index 4fa5f02..b6c55a5 100644
+--- a/src/core/backend.hpp
++++ b/src/core/backend.hpp
+@@ -255,6 +255,15 @@ namespace lvh::detail {
+      */
+     virtual OperationStatus button(bool pressed) = 0;
+ 
++    /**
++     * @brief Commit deferred trackpad contact updates.
++     *
++     * @return Submit status.
++     */
++    virtual OperationStatus sync_contacts() {
++      return OperationStatus::success();
++    }
++
+     /**
+      * @brief Get platform-visible nodes associated with this backend device.
+      *
+diff --git a/src/core/runtime.cpp b/src/core/runtime.cpp
+index 0f39df1..bb57921 100644
+--- a/src/core/runtime.cpp
++++ b/src/core/runtime.cpp
+@@ -920,6 +920,23 @@ namespace lvh {
+     });
+   }
+ 
++  OperationStatus Trackpad::sync_contacts() {
++    return with_device(device_, [](auto &device) {
++      if (!device.open) {
++        return OperationStatus::failure(ErrorCode::device_closed, "trackpad is closed");
++      }
++
++      if (device.backend) {
++        if (const auto status = device.backend->sync_contacts(); !status.ok()) {
++          return status;
++        }
++      }
++
++      ++device.submitted_events;
++      return OperationStatus::success();
++    });
++  }
++
+   TouchContact Trackpad::last_submitted_contact() const {
+     return with_device(device_, [](const auto &device) {
+       return device.last_contact;
+diff --git a/src/include/libvirtualhid/runtime.hpp b/src/include/libvirtualhid/runtime.hpp
+index efdda3f..d2954af 100644
+--- a/src/include/libvirtualhid/runtime.hpp
++++ b/src/include/libvirtualhid/runtime.hpp
+@@ -696,6 +696,13 @@ namespace lvh {
+      */
+     OperationStatus button(bool pressed);
+ 
++    /**
++     * @brief Commit deferred trackpad contact updates.
++     *
++     * @return Submit operation status.
++     */
++    OperationStatus sync_contacts();
++
+     /**
+      * @brief Get the most recently submitted touch contact.
+      *
 diff --git a/src/platform/linux/uhid_backend.cpp b/src/platform/linux/uhid_backend.cpp
-index 8f01d32..4885e73 100644
+index 8f01d32..1a0e9f6 100644
 --- a/src/platform/linux/uhid_backend.cpp
 +++ b/src/platform/linux/uhid_backend.cpp
-@@ -2153,21 +2153,26 @@ namespace lvh::detail {
+@@ -2153,27 +2153,35 @@ namespace lvh::detail {
          const auto x = scale_normalized_axis(contact.x, touch_axis_max_x);
          const auto y = scale_normalized_axis(contact.y, touch_axis_max_y);
          const auto pressure = scale_normalized_axis(contact.pressure, touch_pressure_max);
@@ -37,3 +103,23 @@ index 8f01d32..4885e73 100644
          if (const auto status = emit_event(EV_ABS, ABS_MT_PRESSURE, pressure); !status.ok()) {
            return status;
          }
+         if (const auto status = emit_event(EV_ABS, ABS_MT_ORIENTATION, clamp_degrees(contact.orientation)); !status.ok()) {
+           return status;
+         }
++        if (update_trackpad_buttons) {
++          return OperationStatus::success();
++        }
+         return sync();
+       }
+ 
+@@ -2334,6 +2342,10 @@ namespace lvh::detail {
+         return emit_touch_button(pressed);
+       }
+ 
++      OperationStatus sync_contacts() override {
++        return sync();
++      }
++
+       OperationStatus close() override {
+         return close_touch_device("uinput trackpad");
+       }

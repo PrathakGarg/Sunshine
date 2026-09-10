@@ -5,6 +5,7 @@
 #pragma once
 
 // standard includes
+#include <map>
 #include <memory>
 #include <optional>
 #include <set>
@@ -69,6 +70,7 @@ namespace platf::virtualhid {
     std::unique_ptr<lvh::PenTablet> pen;  ///< Per-client pen tablet.
     std::set<std::int32_t> active_touches;  ///< Active touchscreen contacts.
     std::set<std::int32_t> active_trackpad_contacts;  ///< Active trackpad contacts.
+    std::map<std::int32_t, trackpad_input_t> trackpad_contact_state;  ///< Latest state per trackpad contact.
     std::set<lvh::PenButton> pressed_pen_buttons;  ///< Active pen tablet buttons.
   };
 

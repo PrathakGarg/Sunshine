@@ -450,6 +450,37 @@ namespace platf::virtualhid {
         log_failure("release libvirtualhid trackpad contact"sv, context.trackpad->release_contact(id));
       }
       context.active_trackpad_contacts.clear();
+      context.trackpad_contact_state.clear();
+    }
+
+    lvh::TouchContact trackpad_contact(const trackpad_input_t &trackpad) {
+      lvh::TouchContact contact;
+      contact.id = static_cast<std::int32_t>(trackpad.pointerId);
+      contact.x = std::clamp(trackpad.x, 0.0F, 1.0F);
+      contact.y = std::clamp(trackpad.y, 0.0F, 1.0F);
+      contact.pressure = std::clamp(trackpad.pressureOrDistance, 0.0F, 1.0F);
+      contact.orientation = touch_orientation(trackpad.rotation);
+      contact.touching = trackpad.eventType != LI_TOUCH_EVENT_HOVER;
+      contact.contact_major_axis = trackpad.contactAreaMajor;
+      contact.contact_minor_axis = trackpad.contactAreaMinor;
+      return contact;
+    }
+
+    void flush_trackpad_contacts(client_context_t &context) {
+      if (!context.trackpad) {
+        return;
+      }
+
+      for (const auto id : context.active_trackpad_contacts) {
+        const auto it = context.trackpad_contact_state.find(id);
+        if (it == context.trackpad_contact_state.end()) {
+          continue;
+        }
+
+        log_failure("submit libvirtualhid trackpad contact"sv, context.trackpad->place_contact(trackpad_contact(it->second)));
+      }
+
+      log_failure("sync libvirtualhid trackpad contacts"sv, context.trackpad->sync_contacts());
     }
 
   }  // namespace
@@ -924,11 +955,13 @@ namespace platf::virtualhid {
         cancel_all_trackpad_contacts(context);
         return;
       case LI_TOUCH_EVENT_UP:
+        context.trackpad_contact_state.erase(static_cast<std::int32_t>(trackpad.pointerId));
         log_failure("release libvirtualhid trackpad contact"sv, context.trackpad->release_contact(static_cast<std::int32_t>(trackpad.pointerId)));
         context.active_trackpad_contacts.erase(static_cast<std::int32_t>(trackpad.pointerId));
         return;
       case LI_TOUCH_EVENT_CANCEL:
       case LI_TOUCH_EVENT_HOVER_LEAVE:
+        context.trackpad_contact_state.erase(static_cast<std::int32_t>(trackpad.pointerId));
         log_failure("release libvirtualhid trackpad contact"sv, context.trackpad->release_contact(static_cast<std::int32_t>(trackpad.pointerId)));
         context.active_trackpad_contacts.erase(static_cast<std::int32_t>(trackpad.pointerId));
         return;
@@ -936,17 +969,12 @@ namespace platf::virtualhid {
       case LI_TOUCH_EVENT_DOWN:
       case LI_TOUCH_EVENT_MOVE:
         {
-          lvh::TouchContact contact;
-          contact.id = static_cast<std::int32_t>(trackpad.pointerId);
-          contact.x = std::clamp(trackpad.x, 0.0F, 1.0F);
-          contact.y = std::clamp(trackpad.y, 0.0F, 1.0F);
-          contact.pressure = std::clamp(trackpad.pressureOrDistance, 0.0F, 1.0F);
-          contact.orientation = touch_orientation(trackpad.rotation);
-          contact.touching = trackpad.eventType != LI_TOUCH_EVENT_HOVER;
-          contact.contact_major_axis = trackpad.contactAreaMajor;
-          contact.contact_minor_axis = trackpad.contactAreaMinor;
-          log_failure("submit libvirtualhid trackpad contact"sv, context.trackpad->place_contact(contact));
-          context.active_trackpad_contacts.insert(contact.id);
+          const auto contact_id = static_cast<std::int32_t>(trackpad.pointerId);
+          context.trackpad_contact_state[contact_id] = trackpad;
+          if (trackpad.eventType == LI_TOUCH_EVENT_DOWN) {
+            context.active_trackpad_contacts.insert(contact_id);
+          }
+          flush_trackpad_contacts(context);
           return;
         }
       default:
