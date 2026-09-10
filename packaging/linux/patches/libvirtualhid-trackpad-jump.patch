@@ -65,7 +65,7 @@ index efdda3f..d2954af 100644
       * @brief Get the most recently submitted touch contact.
       *
 diff --git a/src/platform/linux/uhid_backend.cpp b/src/platform/linux/uhid_backend.cpp
-index 8f01d32..130210b 100644
+index 8f01d32..c9618b5 100644
 --- a/src/platform/linux/uhid_backend.cpp
 +++ b/src/platform/linux/uhid_backend.cpp
 @@ -85,6 +85,10 @@ namespace lvh::detail {
@@ -154,7 +154,20 @@ index 8f01d32..130210b 100644
        OperationStatus create_touch_device(DeviceId id, const DeviceProfile &profile) {
          device_name_ = profile.name;
          return create_uinput_device(profile, id);
-@@ -2153,27 +2215,36 @@ namespace lvh::detail {
+@@ -2139,11 +2201,7 @@ namespace lvh::detail {
+             return status;
+           }
+           new_slot_ = false;
+-          if (update_trackpad_buttons) {
+-            if (const auto status = emit_trackpad_tool_buttons(); !status.ok()) {
+-              return status;
+-            }
+-          } else {
++          if (!update_trackpad_buttons) {
+             if (const auto status = emit_event(EV_KEY, BTN_TOUCH, 1); !status.ok()) {
+               return status;
+             }
+@@ -2153,27 +2211,36 @@ namespace lvh::detail {
          const auto x = scale_normalized_axis(contact.x, touch_axis_max_x);
          const auto y = scale_normalized_axis(contact.y, touch_axis_max_y);
          const auto pressure = scale_normalized_axis(contact.pressure, touch_pressure_max);
@@ -199,11 +212,14 @@ index 8f01d32..130210b 100644
          return sync();
        }
  
-@@ -2334,6 +2405,10 @@ namespace lvh::detail {
+@@ -2334,6 +2401,13 @@ namespace lvh::detail {
          return emit_touch_button(pressed);
        }
  
 +      OperationStatus sync_contacts() override {
++        if (const auto status = emit_trackpad_tool_buttons(); !status.ok()) {
++          return status;
++        }
 +        return sync_touch_contacts();
 +      }
 +
