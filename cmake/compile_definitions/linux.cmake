@@ -300,8 +300,26 @@ endif()
 set(LIBEVDEV_CUSTOM_INCLUDE_DIR "${EVDEV_INCLUDE_DIR}")
 set(LIBEVDEV_CUSTOM_LIBRARY "${EVDEV_LIBRARY}")
 
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBEI libei-1.0)
+
+set(SUNSHINE_LIBEI_PINCH FALSE)
+if(LIBEI_FOUND AND LIBEI_VERSION VERSION_GREATER_EQUAL "1.7")
+    set(SUNSHINE_LIBEI_PINCH TRUE)
+    list(APPEND SUNSHINE_DEFINITIONS HAVE_LIBEI_PINCH=1)
+    list(APPEND PLATFORM_LIBRARIES ${LIBEI_LDFLAGS} ${LIBEI_LIBRARIES})
+    include_directories(SYSTEM ${LIBEI_INCLUDE_DIRS})
+endif()
+
 list(APPEND PLATFORM_TARGET_FILES
-        "${CMAKE_SOURCE_DIR}/src/platform/linux/input/virtualhid.cpp")
+        "${CMAKE_SOURCE_DIR}/src/platform/linux/input/virtualhid.cpp"
+        "${CMAKE_SOURCE_DIR}/src/platform/linux/input/pinch.cpp"
+        "${CMAKE_SOURCE_DIR}/src/platform/linux/input/pinch_mapping.cpp")
+
+if(SUNSHINE_LIBEI_PINCH AND PORTAL_FOUND)
+    list(APPEND PLATFORM_TARGET_FILES
+            "${CMAKE_SOURCE_DIR}/src/platform/linux/input/portal_input.cpp")
+endif()
 
 # AppImage and Flatpak
 if (${SUNSHINE_BUILD_APPIMAGE})

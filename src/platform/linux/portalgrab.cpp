@@ -4,6 +4,7 @@
  */
 // local includes
 #include "pipewire.cpp"
+#include "src/platform/linux/input/pinch.h"
 
 namespace {
   // Portal configuration constants
@@ -158,6 +159,8 @@ namespace portal {
 
     ~dbus_t() noexcept {
       try {
+        platf::pinch::clear_portal_eis_fd();
+
         if (conn && !session_handle.empty()) {
           g_autoptr(GError) err = nullptr;
           // This is a blocking C call; it won't throw, but we wrap for safety
@@ -246,6 +249,18 @@ namespace portal {
 
       if (start_portal_session(loop, session_path, pipewire_streams, use_screencast_only) < 0) {
         return -1;
+      }
+
+      if (!use_screencast_only) {
+        int eis_fd = -1;
+        if (connect_to_eis(session_path, eis_fd) == 0) {
+          platf::pinch::set_portal_eis_fd(eis_fd);
+          if (eis_fd >= 0) {
+            close(eis_fd);
+          }
+        } else {
+          BOOST_LOG(warning) << "[portalgrab] ConnectToEIS failed; pinch gestures unavailable"sv;
+        }
       }
 
       if (open_pipewire_remote(session_path, pipewire_fd) < 0) {
@@ -627,6 +642,46 @@ namespace portal {
         return a.pos_x < b.pos_x || a.pos_y < b.pos_y;
       });
 
+      return 0;
+    }
+
+    /**
+     * @brief Request an EIS connection from the active RemoteDesktop session.
+     *
+     * @param session_path Active portal session path.
+     * @param fd Output EIS file descriptor.
+     * @return 0 on success.
+     */
+    int connect_to_eis(const gchar *session_path, int &fd) {
+      g_autoptr(GUnixFDList) fd_list = nullptr;
+      g_autoptr(GVariant) msg = g_variant_ref_sink(g_variant_new("(oa{sv})", session_path, nullptr));
+
+      g_autoptr(GError) err = nullptr;
+      g_autoptr(GVariant) reply = g_dbus_proxy_call_with_unix_fd_list_sync(
+        remote_desktop_proxy,
+        "ConnectToEIS",
+        msg,
+        G_DBUS_CALL_FLAGS_NONE,
+        -1,
+        nullptr,
+        &fd_list,
+        nullptr,
+        &err
+      );
+      if (err) {
+        BOOST_LOG(error) << "[portalgrab] Could not connect to EIS: "sv << err->message;
+        return -1;
+      }
+
+      int fd_handle = 0;
+      g_variant_get(reply, "(h)", &fd_handle);
+      fd = g_unix_fd_list_get(fd_list, fd_handle, nullptr);
+      if (fd < 0) {
+        BOOST_LOG(error) << "[portalgrab] ConnectToEIS returned an invalid fd"sv;
+        return -1;
+      }
+
+      BOOST_LOG(info) << "[portalgrab] Connected to portal EIS for pinch injection"sv;
       return 0;
     }
 

@@ -558,6 +558,20 @@ namespace input {
   }
 
   /**
+   * @brief Prints a pinch gesture packet.
+   * @param packet The pinch packet.
+   */
+  void print_pinch(PSS_PINCH_PACKET packet) {
+    BOOST_LOG(debug)
+      << "--begin pinch packet--"sv << std::endl
+      << "eventType ["sv << util::hex(packet->eventType).to_string_view() << ']' << std::endl
+      << "span ["sv << from_netfloat(packet->span) << ']' << std::endl
+      << "centerX ["sv << from_netfloat(packet->centerX) << ']' << std::endl
+      << "centerY ["sv << from_netfloat(packet->centerY) << ']' << std::endl
+      << "--end pinch packet--"sv;
+  }
+
+  /**
    * @brief Prints a touch packet.
    * @param packet The touch packet.
    */
@@ -688,6 +702,9 @@ namespace input {
         break;
       case SS_TOUCH_MAGIC:
         print((PSS_TOUCH_PACKET) payload);
+        break;
+      case SS_PINCH_MAGIC:
+        print_pinch((PSS_PINCH_PACKET) payload);
         break;
       case SS_PEN_MAGIC:
         print((PSS_PEN_PACKET) payload);
@@ -1426,6 +1443,49 @@ namespace input {
   }
 
   /**
+   * @brief Called to pass a pinch gesture message to the platform backend.
+   * @param input The input context pointer.
+   * @param packet The pinch packet.
+   */
+  void pinch_passthrough(std::shared_ptr<input_t> &input, PSS_PINCH_PACKET packet) {
+    BOOST_LOG(debug)
+      << "[pinch] Received pinch packet: eventType="sv << util::hex(packet->eventType).to_string_view()
+      << " span="sv << from_netfloat(packet->span)
+      << " center=("sv << from_netfloat(packet->centerX) << ',' << from_netfloat(packet->centerY) << ')'
+      << " touch_port_ready="sv << static_cast<bool>(input->touch_port);
+
+    if (!input->touch_port) {
+      BOOST_LOG(warning) << "[pinch] Dropping pinch packet because touch port is not initialized yet"sv;
+      return;
+    }
+
+    auto coords = client_to_touchport(
+      input,
+      {from_clamped_netfloat(packet->centerX, 0.0f, 1.0f) * 65535.f, from_clamped_netfloat(packet->centerY, 0.0f, 1.0f) * 65535.f},
+      {65535.f, 65535.f}
+    );
+    if (!coords) {
+      BOOST_LOG(warning) << "[pinch] Dropping pinch packet because center coordinates are outside the touch port"sv;
+      return;
+    }
+
+    auto touch_port = monitor_touch_port(input->touch_port, *coords);
+    if (!touch_port) {
+      BOOST_LOG(warning) << "[pinch] Dropping pinch packet because monitor touch port lookup failed"sv;
+      return;
+    }
+
+    platf::pinch_input_t pinch {
+      packet->eventType,
+      from_clamped_netfloat(packet->span, 0.04f, 1.0f),
+      coords->first,
+      coords->second,
+    };
+
+    platf::pinch_update(input->client_context.get(), &*touch_port, pinch);
+  }
+
+  /**
    * @brief Called to pass a pen message to the platform backend.
    * @param input The input context pointer.
    * @param packet The pen packet.
@@ -1720,6 +1780,8 @@ namespace input {
         return validate_fixed_input_packet<NV_MULTI_CONTROLLER_PACKET>(packet, declared_size);
       case SS_TOUCH_MAGIC:
         return validate_fixed_input_packet<SS_TOUCH_PACKET>(packet, declared_size);
+      case SS_PINCH_MAGIC:
+        return validate_fixed_input_packet<SS_PINCH_PACKET>(packet, declared_size);
       case SS_PEN_MAGIC:
         return validate_fixed_input_packet<SS_PEN_PACKET>(packet, declared_size);
       case SS_CONTROLLER_ARRIVAL_MAGIC:
@@ -2093,6 +2155,9 @@ namespace input {
         break;
       case SS_TOUCH_MAGIC:
         passthrough(input, (PSS_TOUCH_PACKET) payload);
+        break;
+      case SS_PINCH_MAGIC:
+        pinch_passthrough(input, (PSS_PINCH_PACKET) payload);
         break;
       case SS_PEN_MAGIC:
         passthrough(input, (PSS_PEN_PACKET) payload);

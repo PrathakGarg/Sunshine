@@ -62,6 +62,9 @@
 #include "src/entry_handler.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
+#if defined(HAVE_LIBEI_PINCH) && defined(SUNSHINE_BUILD_PORTAL)
+  #include "src/platform/linux/input/portal_input.h"
+#endif
 #include "vaapi.h"
 
 #ifdef __GNUC__
@@ -538,14 +541,18 @@ namespace platf {
    * @brief Apply Linux platform state before streaming starts.
    */
   void streaming_will_start() {
-    // Nothing to do
+#if defined(HAVE_LIBEI_PINCH) && defined(SUNSHINE_BUILD_PORTAL)
+    platf::portal_input::streaming_start();
+#endif
   }
 
   /**
    * @brief Restore Linux platform state after streaming stops.
    */
   void streaming_will_stop() {
-    // Nothing to do
+#if defined(HAVE_LIBEI_PINCH) && defined(SUNSHINE_BUILD_PORTAL)
+    platf::portal_input::streaming_stop();
+#endif
   }
 
   /**

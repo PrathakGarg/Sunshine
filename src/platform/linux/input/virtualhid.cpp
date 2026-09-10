@@ -13,6 +13,7 @@
 #endif
 
 // local includes
+#include "src/platform/linux/input/pinch.h"
 #include "src/platform/virtualhid_input.h"
 
 using namespace std::literals;
@@ -30,6 +31,9 @@ namespace platf {
     }
     if (virtualhid::configured_gamepad_supports_controller_extensions()) {
       caps |= platform_caps::controller_touch;
+    }
+    if (pinch::capable()) {
+      caps |= platform_caps::pinch;
     }
 
     return caps;

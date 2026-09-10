@@ -405,6 +405,10 @@ namespace platf {
      * @brief Capability bit indicating controller touchpad and motion support.
      */
     constexpr caps_t controller_touch = 0x02;  // Controller touch and motion events
+    /**
+     * @brief Capability bit indicating pinch gesture support.
+     */
+    constexpr caps_t pinch = 0x04;  // Pinch gesture events
   };  // namespace platform_caps
 
   /**
@@ -490,6 +494,16 @@ namespace platf {
     float pressureOrDistance;  ///< Distance for hover and pressure for contact.
     float contactAreaMajor;  ///< Major axis of the reported contact area.
     float contactAreaMinor;  ///< Minor axis of the reported contact area.
+  };
+
+  /**
+   * @brief Pinch gesture event data from the client.
+   */
+  struct pinch_input_t {
+    std::uint8_t eventType;  ///< Pinch phase (begin, update, or end).
+    float span;  ///< Normalized distance between the two virtual fingers.
+    float centerX;  ///< Normalized horizontal center of the pinch.
+    float centerY;  ///< Normalized vertical center of the pinch.
   };
 
   /**
@@ -1222,6 +1236,14 @@ namespace platf {
    * @param touch The touch event.
    */
   void touch_update(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch);
+
+  /**
+   * @brief Send a pinch gesture event to the OS.
+   * @param input The client-specific input context.
+   * @param touch_port The current viewport for translating to screen coordinates.
+   * @param pinch The pinch gesture event.
+   */
+  void pinch_update(client_input_t *input, const touch_port_t *touch_port, const pinch_input_t &pinch);
 
   /**
    * @brief Send a pen event to the OS.

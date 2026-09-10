@@ -1076,6 +1076,14 @@ namespace platf {
     virtualhid::touch_update(virtualhid::get_client_context(input), touch_port, touch);
   }
 
+#ifndef __linux__
+  void pinch_update(client_input_t *input, const touch_port_t *touch_port, const pinch_input_t &pinch) {
+    (void) input;
+    (void) touch_port;
+    (void) pinch;
+  }
+#endif
+
   void pen_update(client_input_t *input, const touch_port_t &touch_port, const pen_input_t &pen) {
     virtualhid::pen_update(virtualhid::get_client_context(input), touch_port, pen);
   }

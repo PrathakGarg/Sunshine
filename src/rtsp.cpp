@@ -26,6 +26,7 @@ extern "C" {
 #include "globals.h"
 #include "input.h"
 #include "logging.h"
+#include "utility.h"
 #include "network.h"
 #include "rtsp.h"
 #include "stream.h"
@@ -924,7 +925,11 @@ namespace rtsp_stream {
     std::stringstream ss;
 
     // Tell the client about our supported features
-    ss << "a=x-ss-general.featureFlags:" << (uint32_t) platf::get_capabilities() << std::endl;
+    const auto feature_flags = platf::get_capabilities();
+    BOOST_LOG(info)
+      << "Advertising featureFlags to client: 0x"sv << util::hex(feature_flags).to_string_view()
+      << " (pinch="sv << ((feature_flags & platf::platform_caps::pinch) ? "yes" : "no") << ')' << std::endl;
+    ss << "a=x-ss-general.featureFlags:" << feature_flags << std::endl;
 
     // Always request new control stream encryption if the client supports it
     uint32_t encryption_flags_supported = SS_ENC_CONTROL_V2 | SS_ENC_AUDIO;
