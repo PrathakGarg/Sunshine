@@ -33,14 +33,19 @@ fi
 echo "Installing $RPM_PATH"
 sudo dnf install -y "$RPM_PATH"
 
-# Sunshine ships a user service, not a system unit.
+# Sunshine ships a user service, not a system unit. sunshine.service is only an alias;
+# systemd refuses enable/restart on linked unit files.
+SUNSHINE_UNIT="app-dev.lizardbyte.app.Sunshine.service"
 systemctl --user daemon-reload
-if systemctl --user cat sunshine.service >/dev/null 2>&1; then
-  systemctl --user enable --now sunshine.service
-  systemctl --user status sunshine.service --no-pager
-elif systemctl --user cat app-dev.lizardbyte.app.Sunshine.service >/dev/null 2>&1; then
-  systemctl --user enable --now app-dev.lizardbyte.app.Sunshine.service
-  systemctl --user status app-dev.lizardbyte.app.Sunshine.service --no-pager
+if systemctl --user cat "$SUNSHINE_UNIT" >/dev/null 2>&1; then
+  if systemctl --user is-active --quiet "$SUNSHINE_UNIT"; then
+    systemctl --user restart "$SUNSHINE_UNIT"
+  elif systemctl --user is-enabled --quiet "$SUNSHINE_UNIT" 2>/dev/null; then
+    systemctl --user start "$SUNSHINE_UNIT"
+  else
+    systemctl --user enable --now "$SUNSHINE_UNIT"
+  fi
+  systemctl --user status "$SUNSHINE_UNIT" --no-pager || true
 else
   echo "No Sunshine user service unit found. Start manually with: sunshine" >&2
 fi
