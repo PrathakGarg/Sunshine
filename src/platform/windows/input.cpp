@@ -1321,6 +1321,9 @@ namespace platf {
         if (capabilities.supports_touchscreen || capabilities.supports_pen_tablet) {
           caps |= platform_caps::pen_touch;
         }
+        if (capabilities.supports_trackpad) {
+          caps |= platform_caps::trackpad;
+        }
       } else {
         BOOST_LOG(warning) << "Unable to create libvirtualhid runtime for touch/pen capability detection"sv;
       }

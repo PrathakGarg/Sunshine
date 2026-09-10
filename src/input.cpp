@@ -561,6 +561,20 @@ namespace input {
    * @brief Prints a touch packet.
    * @param packet The touch packet.
    */
+  void print(PSS_TRACKPAD_PACKET packet) {
+    BOOST_LOG(debug)
+      << "--begin trackpad packet--"sv << std::endl
+      << "eventType ["sv << util::hex(packet->eventType).to_string_view() << ']' << std::endl
+      << "pointerId ["sv << util::hex(packet->pointerId).to_string_view() << ']' << std::endl
+      << "x ["sv << from_netfloat(packet->x) << ']' << std::endl
+      << "y ["sv << from_netfloat(packet->y) << ']' << std::endl
+      << "pressureOrDistance ["sv << from_netfloat(packet->pressureOrDistance) << ']' << std::endl
+      << "contactAreaMajor ["sv << from_netfloat(packet->contactAreaMajor) << ']' << std::endl
+      << "contactAreaMinor ["sv << from_netfloat(packet->contactAreaMinor) << ']' << std::endl
+      << "rotation ["sv << (uint32_t) packet->rotation << ']' << std::endl
+      << "--end trackpad packet--"sv;
+  }
+
   void print(PSS_TOUCH_PACKET packet) {
     BOOST_LOG(debug)
       << "--begin touch packet--"sv << std::endl
@@ -688,6 +702,9 @@ namespace input {
         break;
       case SS_TOUCH_MAGIC:
         print((PSS_TOUCH_PACKET) payload);
+        break;
+      case SS_TRACKPAD_MAGIC:
+        print((PSS_TRACKPAD_PACKET) payload);
         break;
       case SS_PEN_MAGIC:
         print((PSS_PEN_PACKET) payload);
@@ -1426,6 +1443,41 @@ namespace input {
   }
 
   /**
+   * @brief Called to pass a trackpad message to the platform backend.
+   * @param input The input context pointer.
+   * @param packet The trackpad packet.
+   */
+  void passthrough(std::shared_ptr<input_t> &input, PSS_TRACKPAD_PACKET packet) {
+    if (packet->eventType == LI_TOUCH_EVENT_CANCEL_ALL) {
+      platf::trackpad_input_t trackpad {
+        LI_TOUCH_EVENT_CANCEL_ALL,
+        LI_ROT_UNKNOWN,
+        0,
+        0.0F,
+        0.0F,
+        0.0F,
+        0.0F,
+        0.0F,
+      };
+      platf::trackpad_update(input->client_context.get(), trackpad);
+      return;
+    }
+
+    platf::trackpad_input_t trackpad {
+      packet->eventType,
+      util::endian::little(packet->rotation),
+      util::endian::little(packet->pointerId),
+      from_clamped_netfloat(packet->x, 0.0f, 1.0f),
+      from_clamped_netfloat(packet->y, 0.0f, 1.0f),
+      from_clamped_netfloat(packet->pressureOrDistance, 0.0f, 1.0f),
+      from_clamped_netfloat(packet->contactAreaMajor, 0.0f, 1.0f),
+      from_clamped_netfloat(packet->contactAreaMinor, 0.0f, 1.0f),
+    };
+
+    platf::trackpad_update(input->client_context.get(), trackpad);
+  }
+
+  /**
    * @brief Called to pass a pen message to the platform backend.
    * @param input The input context pointer.
    * @param packet The pen packet.
@@ -1720,6 +1772,8 @@ namespace input {
         return validate_fixed_input_packet<NV_MULTI_CONTROLLER_PACKET>(packet, declared_size);
       case SS_TOUCH_MAGIC:
         return validate_fixed_input_packet<SS_TOUCH_PACKET>(packet, declared_size);
+      case SS_TRACKPAD_MAGIC:
+        return validate_fixed_input_packet<SS_TRACKPAD_PACKET>(packet, declared_size);
       case SS_PEN_MAGIC:
         return validate_fixed_input_packet<SS_PEN_PACKET>(packet, declared_size);
       case SS_CONTROLLER_ARRIVAL_MAGIC:
@@ -1884,6 +1938,10 @@ namespace input {
     return batch_result_e::batched;
   }
 
+  batch_result_e batch(PSS_TRACKPAD_PACKET dest, PSS_TRACKPAD_PACKET src) {
+    return batch((PSS_TOUCH_PACKET) dest, (PSS_TOUCH_PACKET) src);
+  }
+
   /**
    * @brief Batch two pen messages.
    * @param dest The original packet to batch into.
@@ -2003,6 +2061,8 @@ namespace input {
         return batch((PNV_MULTI_CONTROLLER_PACKET) dest, (PNV_MULTI_CONTROLLER_PACKET) src);
       case SS_TOUCH_MAGIC:
         return batch((PSS_TOUCH_PACKET) dest, (PSS_TOUCH_PACKET) src);
+      case SS_TRACKPAD_MAGIC:
+        return batch((PSS_TRACKPAD_PACKET) dest, (PSS_TRACKPAD_PACKET) src);
       case SS_PEN_MAGIC:
         return batch((PSS_PEN_PACKET) dest, (PSS_PEN_PACKET) src);
       case SS_CONTROLLER_TOUCH_MAGIC:
@@ -2093,6 +2153,9 @@ namespace input {
         break;
       case SS_TOUCH_MAGIC:
         passthrough(input, (PSS_TOUCH_PACKET) payload);
+        break;
+      case SS_TRACKPAD_MAGIC:
+        passthrough(input, (PSS_TRACKPAD_PACKET) payload);
         break;
       case SS_PEN_MAGIC:
         passthrough(input, (PSS_PEN_PACKET) payload);

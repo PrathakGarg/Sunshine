@@ -1,0 +1,105 @@
+diff --git a/src/Input.h b/src/Input.h
+index 1c5166d..7b11dff 100644
+--- a/src/Input.h
++++ b/src/Input.h
+@@ -196,4 +196,7 @@ typedef struct _SS_CONTROLLER_BATTERY_PACKET {
+     uint8_t zero[1]; // Alignment/reserved
+ } SS_CONTROLLER_BATTERY_PACKET, *PSS_CONTROLLER_BATTERY_PACKET;
+ 
++#define SS_TRACKPAD_MAGIC 0x55000008
++typedef SS_TOUCH_PACKET SS_TRACKPAD_PACKET, *PSS_TRACKPAD_PACKET;
++
+ #pragma pack(pop)
+diff --git a/src/InputStream.c b/src/InputStream.c
+index 5994836..8bd07b7 100644
+--- a/src/InputStream.c
++++ b/src/InputStream.c
+@@ -67,6 +67,7 @@ typedef struct _PACKET_HOLDER {
+         SS_HSCROLL_PACKET hscroll;
+         NV_HAPTICS_PACKET haptics;
+         SS_TOUCH_PACKET touch;
++        SS_TRACKPAD_PACKET trackpad;
+         SS_PEN_PACKET pen;
+         SS_CONTROLLER_ARRIVAL_PACKET controllerArrival;
+         SS_CONTROLLER_TOUCH_PACKET controllerTouch;
+@@ -1370,6 +1371,53 @@ int LiSendTouchEvent(uint8_t eventType, uint32_t pointerId, float x, float y, fl
+     return err;
+ }
+ 
++int LiSendTrackpadEvent(uint8_t eventType, uint32_t pointerId, float x, float y, float pressureOrDistance,
++                        float contactAreaMajor, float contactAreaMinor, uint16_t rotation) {
++    PPACKET_HOLDER holder;
++    int err;
++
++    if (!initialized) {
++        return -2;
++    }
++
++    // This is a protocol extension only supported with Sunshine
++    if (!(SunshineFeatureFlags & LI_FF_TRACKPAD_EVENTS)) {
++        return LI_ERR_UNSUPPORTED;
++    }
++
++    holder = allocatePacketHolder(0);
++    if (holder == NULL) {
++        return -1;
++    }
++
++    holder->channelId = CTRL_CHANNEL_TOUCH;
++
++    // Allow move and hover events to be dropped if a newer one arrives, but don't allow
++    // state changing events like up/down/leave events to be dropped.
++    holder->enetPacketFlags = TOUCH_EVENT_IS_BATCHABLE(eventType) ? 0 : ENET_PACKET_FLAG_RELIABLE;
++
++    holder->packet.trackpad.header.size = BE32(sizeof(SS_TRACKPAD_PACKET) - sizeof(uint32_t));
++    holder->packet.trackpad.header.magic = LE32(SS_TRACKPAD_MAGIC);
++    holder->packet.trackpad.eventType = eventType;
++    holder->packet.trackpad.pointerId = LE32(pointerId);
++    holder->packet.trackpad.rotation = LE16(rotation);
++    memset(holder->packet.trackpad.zero, 0, sizeof(holder->packet.trackpad.zero));
++    floatToNetfloat(x, holder->packet.trackpad.x);
++    floatToNetfloat(y, holder->packet.trackpad.y);
++    floatToNetfloat(pressureOrDistance, holder->packet.trackpad.pressureOrDistance);
++    floatToNetfloat(contactAreaMajor, holder->packet.trackpad.contactAreaMajor);
++    floatToNetfloat(contactAreaMinor, holder->packet.trackpad.contactAreaMinor);
++
++    err = LbqOfferQueueItem(&packetQueue, holder, &holder->entry);
++    if (err != LBQ_SUCCESS) {
++        LC_ASSERT(err == LBQ_BOUND_EXCEEDED);
++        Limelog("Input queue reached maximum size limit\n");
++        freePacketHolder(holder);
++    }
++
++    return err;
++}
++
+ int LiSendPenEvent(uint8_t eventType, uint8_t toolType, uint8_t penButtons,
+                    float x, float y, float pressureOrDistance,
+                    float contactAreaMajor, float contactAreaMinor,
+diff --git a/src/Limelight.h b/src/Limelight.h
+index 5e1bbcd..3ceb203 100644
+--- a/src/Limelight.h
++++ b/src/Limelight.h
+@@ -660,6 +660,14 @@ int LiSendMouseMoveAsMousePositionEvent(short deltaX, short deltaY, short refere
+ int LiSendTouchEvent(uint8_t eventType, uint32_t pointerId, float x, float y, float pressureOrDistance,
+                      float contactAreaMajor, float contactAreaMinor, uint16_t rotation);
+ 
++// This function is similar to LiSendTouchEvent() but sends trackpad contact events instead of
++// touchscreen events. Coordinates are normalized to the virtual trackpad surface (0.0 - 1.0).
++//
++// To determine if LiSendTrackpadEvent() is supported without calling it, call LiGetHostFeatureFlags()
++// and check for the LI_FF_TRACKPAD_EVENTS flag.
++int LiSendTrackpadEvent(uint8_t eventType, uint32_t pointerId, float x, float y, float pressureOrDistance,
++                        float contactAreaMajor, float contactAreaMinor, uint16_t rotation);
++
+ // This function is similar to LiSendTouchEvent() but allows additional parameters relevant for pen
+ // input, including tilt and buttons. Tilt is in degrees from vertical in Z dimension (perpendicular
+ // to screen, 0..90). See LiSendTouchEvent() for detailed documentation on other parameters.
+@@ -1011,6 +1019,7 @@ void LiRequestIdrFrame(void);
+ // This function returns any extended feature flags supported by the host.
+ #define LI_FF_PEN_TOUCH_EVENTS        0x01 // LiSendTouchEvent()/LiSendPenEvent() supported
+ #define LI_FF_CONTROLLER_TOUCH_EVENTS 0x02 // LiSendControllerTouchEvent() supported
++#define LI_FF_TRACKPAD_EVENTS         0x04 // LiSendTrackpadEvent() supported
+ uint32_t LiGetHostFeatureFlags(void);
+ 
+ #ifdef __cplusplus

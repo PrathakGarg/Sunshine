@@ -116,6 +116,7 @@ namespace {
       ASSERT_NE(context_->keyboard, nullptr);
       ASSERT_NE(context_->mouse, nullptr);
       ASSERT_NE(client_->touch, nullptr);
+      ASSERT_NE(client_->trackpad, nullptr);
       ASSERT_NE(client_->pen, nullptr);
     }
 
@@ -787,6 +788,37 @@ TEST_F(VirtualHidDeviceTest, TranslatesTouchscreenLifecycleAndGeometry) {
   platf::virtualhid::touch_update(*client(), viewport, touch);
   client()->touch.reset();
   platf::virtualhid::touch_update(*client(), viewport, touch);
+}
+
+TEST_F(VirtualHidDeviceTest, TranslatesTrackpadPinchContacts) {
+  platf::trackpad_input_t finger_a {LI_TOUCH_EVENT_DOWN, LI_ROT_UNKNOWN, 1, 0.425F, 0.5F, 1.0F, 0.0F, 0.0F};
+  platf::trackpad_input_t finger_b {LI_TOUCH_EVENT_DOWN, LI_ROT_UNKNOWN, 2, 0.575F, 0.5F, 1.0F, 0.0F, 0.0F};
+  platf::virtualhid::trackpad_update(*client(), finger_a);
+  platf::virtualhid::trackpad_update(*client(), finger_b);
+  EXPECT_TRUE(client()->active_trackpad_contacts.contains(1));
+  EXPECT_TRUE(client()->active_trackpad_contacts.contains(2));
+
+  finger_a.eventType = LI_TOUCH_EVENT_MOVE;
+  finger_a.x = 0.35F;
+  finger_b.eventType = LI_TOUCH_EVENT_MOVE;
+  finger_b.x = 0.65F;
+  platf::virtualhid::trackpad_update(*client(), finger_a);
+  platf::virtualhid::trackpad_update(*client(), finger_b);
+  EXPECT_FLOAT_EQ(client()->trackpad->last_submitted_contact().x, 0.65F);
+
+  finger_a.eventType = LI_TOUCH_EVENT_UP;
+  finger_b.eventType = LI_TOUCH_EVENT_UP;
+  platf::virtualhid::trackpad_update(*client(), finger_a);
+  platf::virtualhid::trackpad_update(*client(), finger_b);
+  EXPECT_TRUE(client()->active_trackpad_contacts.empty());
+
+  finger_a.eventType = LI_TOUCH_EVENT_DOWN;
+  finger_b.eventType = LI_TOUCH_EVENT_DOWN;
+  platf::virtualhid::trackpad_update(*client(), finger_a);
+  platf::virtualhid::trackpad_update(*client(), finger_b);
+  finger_a.eventType = LI_TOUCH_EVENT_CANCEL_ALL;
+  platf::virtualhid::trackpad_update(*client(), finger_a);
+  EXPECT_TRUE(client()->active_trackpad_contacts.empty());
 }
 
 TEST_F(VirtualHidDeviceTest, TranslatesPenButtonsToolsAndTransitions) {

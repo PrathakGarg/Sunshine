@@ -65,8 +65,10 @@ namespace platf::virtualhid {
 
     input_context_t *global = nullptr;  ///< Shared global input context.
     std::unique_ptr<lvh::Touchscreen> touch;  ///< Per-client touchscreen.
+    std::unique_ptr<lvh::Trackpad> trackpad;  ///< Per-client virtual trackpad.
     std::unique_ptr<lvh::PenTablet> pen;  ///< Per-client pen tablet.
     std::set<std::int32_t> active_touches;  ///< Active touchscreen contacts.
+    std::set<std::int32_t> active_trackpad_contacts;  ///< Active trackpad contacts.
     std::set<lvh::PenButton> pressed_pen_buttons;  ///< Active pen tablet buttons.
   };
 
@@ -299,6 +301,14 @@ namespace platf::virtualhid {
    * @param touch Touch event.
    */
   void touch_update(client_context_t &context, const touch_port_t &touch_port, const touch_input_t &touch);
+
+  /**
+   * @brief Submit a trackpad contact event.
+   *
+   * @param context Client context.
+   * @param trackpad Trackpad contact event.
+   */
+  void trackpad_update(client_context_t &context, const trackpad_input_t &trackpad);
 
   /**
    * @brief Submit a pen event.
