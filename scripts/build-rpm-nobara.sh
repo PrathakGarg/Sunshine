@@ -37,7 +37,8 @@ if [[ -z "$RPM_PATH" ]]; then
 fi
 
 echo "Installing $RPM_PATH"
-sudo dnf install -y "$RPM_PATH"
+# Reinstall so rebuilt RPMs with the same version (0.0.0-dirty) replace the installed files.
+sudo dnf reinstall -y "$RPM_PATH"
 
 # Sunshine ships a user service, not a system unit. sunshine.service is only an alias;
 # systemd refuses enable/restart on linked unit files.
