@@ -10,12 +10,18 @@ if ! command -v dnf >/dev/null 2>&1; then
   exit 1
 fi
 
-git submodule update --init third-party/moonlight-common-c
+git submodule update --init third-party/moonlight-common-c third-party/libvirtualhid
 
 TRACKPAD_PATCH="$REPO_ROOT/packaging/linux/patches/moonlight-common-c-trackpad.patch"
 if ! grep -q 'SS_TRACKPAD_MAGIC' "$REPO_ROOT/third-party/moonlight-common-c/src/Input.h"; then
   echo "Applying moonlight-common-c trackpad protocol patch"
   patch -d "$REPO_ROOT/third-party/moonlight-common-c" -p1 < "$TRACKPAD_PATCH"
+fi
+
+TRACKPAD_JUMP_PATCH="$REPO_ROOT/packaging/linux/patches/libvirtualhid-trackpad-jump.patch"
+if ! grep -q 'emit_legacy_axes' "$REPO_ROOT/third-party/libvirtualhid/src/platform/linux/uhid_backend.cpp"; then
+  echo "Applying libvirtualhid trackpad jump patch"
+  patch -d "$REPO_ROOT/third-party/libvirtualhid" -p1 < "$TRACKPAD_JUMP_PATCH"
 fi
 
 # Avoid upgrading system packages (e.g. dkms-nvidia) and skip CUDA runfile install.

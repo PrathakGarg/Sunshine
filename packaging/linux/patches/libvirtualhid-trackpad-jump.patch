@@ -1,0 +1,39 @@
+diff --git a/src/platform/linux/uhid_backend.cpp b/src/platform/linux/uhid_backend.cpp
+index 8f01d32..4885e73 100644
+--- a/src/platform/linux/uhid_backend.cpp
++++ b/src/platform/linux/uhid_backend.cpp
+@@ -2153,21 +2153,26 @@ namespace lvh::detail {
+         const auto x = scale_normalized_axis(contact.x, touch_axis_max_x);
+         const auto y = scale_normalized_axis(contact.y, touch_axis_max_y);
+         const auto pressure = scale_normalized_axis(contact.pressure, touch_pressure_max);
+-        if (const auto status = emit_event(EV_ABS, ABS_X, x); !status.ok()) {
+-          return status;
++        // Trackpads use legacy ABS_X/ABS_Y for the pointer. Updating those while multiple
++        // contacts are active makes libinput discard touch jumps on the virtual trackpad.
++        const bool emit_legacy_axes = !update_trackpad_buttons || contacts_.size() <= 1;
++        if (emit_legacy_axes) {
++          if (const auto status = emit_event(EV_ABS, ABS_X, x); !status.ok()) {
++            return status;
++          }
++          if (const auto status = emit_event(EV_ABS, ABS_Y, y); !status.ok()) {
++            return status;
++          }
++          if (const auto status = emit_event(EV_ABS, ABS_PRESSURE, pressure); !status.ok()) {
++            return status;
++          }
+         }
+         if (const auto status = emit_event(EV_ABS, ABS_MT_POSITION_X, x); !status.ok()) {
+           return status;
+         }
+-        if (const auto status = emit_event(EV_ABS, ABS_Y, y); !status.ok()) {
+-          return status;
+-        }
+         if (const auto status = emit_event(EV_ABS, ABS_MT_POSITION_Y, y); !status.ok()) {
+           return status;
+         }
+-        if (const auto status = emit_event(EV_ABS, ABS_PRESSURE, pressure); !status.ok()) {
+-          return status;
+-        }
+         if (const auto status = emit_event(EV_ABS, ABS_MT_PRESSURE, pressure); !status.ok()) {
+           return status;
+         }
