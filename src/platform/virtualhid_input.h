@@ -71,6 +71,7 @@ namespace platf::virtualhid {
     std::set<std::int32_t> active_touches;  ///< Active touchscreen contacts.
     std::set<std::int32_t> active_trackpad_contacts;  ///< Active trackpad contacts.
     std::map<std::int32_t, trackpad_input_t> trackpad_contact_state;  ///< Latest state per trackpad contact.
+    std::map<std::int32_t, trackpad_input_t> trackpad_submitted_state;  ///< Last submitted state per trackpad contact.
     std::set<lvh::PenButton> pressed_pen_buttons;  ///< Active pen tablet buttons.
   };
 
@@ -319,6 +320,13 @@ namespace platf::virtualhid {
    * @param context Client context.
    */
   void trackpad_flush_contacts(client_context_t &context);
+
+  /**
+   * @brief Commit pending trackpad slot updates without placing contacts.
+   *
+   * @param context Client context.
+   */
+  void trackpad_sync_contacts(client_context_t &context);
 
   /**
    * @brief Get the number of active trackpad contacts.

@@ -65,7 +65,7 @@ index efdda3f..d2954af 100644
       * @brief Get the most recently submitted touch contact.
       *
 diff --git a/src/platform/linux/uhid_backend.cpp b/src/platform/linux/uhid_backend.cpp
-index 8f01d32..8d5beb2 100644
+index 8f01d32..a4eefce 100644
 --- a/src/platform/linux/uhid_backend.cpp
 +++ b/src/platform/linux/uhid_backend.cpp
 @@ -85,6 +85,10 @@ namespace lvh::detail {
@@ -212,7 +212,21 @@ index 8f01d32..8d5beb2 100644
          return sync();
        }
  
-@@ -2217,6 +2284,26 @@ namespace lvh::detail {
+@@ -2195,10 +2262,9 @@ namespace lvh::detail {
+         }
+ 
+         if (update_trackpad_buttons) {
+-          if (const auto status = emit_trackpad_tool_buttons(); !status.ok()) {
+-            return status;
+-          }
+-        } else if (contacts_.empty()) {
++          return OperationStatus::success();
++        }
++        if (contacts_.empty()) {
+           if (const auto status = emit_event(EV_KEY, BTN_TOUCH, 0); !status.ok()) {
+             return status;
+           }
+@@ -2217,6 +2283,26 @@ namespace lvh::detail {
          return sync();
        }
  
@@ -239,7 +253,7 @@ index 8f01d32..8d5beb2 100644
      private:
        std::optional<int> slot_for_contact(std::int32_t contact_id) {
          if (const auto it = contacts_.find(contact_id); it != contacts_.end()) {
-@@ -2246,26 +2333,6 @@ namespace lvh::detail {
+@@ -2246,26 +2332,6 @@ namespace lvh::detail {
          return emit_event(EV_ABS, ABS_MT_SLOT, slot);
        }
  
@@ -266,7 +280,7 @@ index 8f01d32..8d5beb2 100644
        std::string device_name_;
        std::map<std::int32_t, int> contacts_;
        int current_slot_ = -1;
-@@ -2334,6 +2401,13 @@ namespace lvh::detail {
+@@ -2334,6 +2400,13 @@ namespace lvh::detail {
          return emit_touch_button(pressed);
        }
  

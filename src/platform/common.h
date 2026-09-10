@@ -1246,6 +1246,12 @@ namespace platf {
   void trackpad_flush_contacts(client_input_t *input);
 
   /**
+   * @brief Commit pending trackpad slot updates without placing contacts.
+   * @param input The client-specific input context.
+   */
+  void trackpad_sync_contacts(client_input_t *input);
+
+  /**
    * @brief Get the number of active trackpad contacts.
    * @param input The client-specific input context.
    * @return Active trackpad contact count.

@@ -301,7 +301,6 @@ namespace input {
     bool input_dispatch_pending = false;  ///< Whether an input dispatch task is already queued.
 
     thread_pool_util::ThreadPool::task_id_t mouse_left_button_timeout;  ///< Mouse left button timeout.
-    thread_pool_util::ThreadPool::task_id_t trackpad_flush_timeout;  ///< Deferred trackpad contact flush task.
 
     input::touch_port_t touch_port;  ///< Touch coordinate bounds for the current stream.
 
@@ -1483,31 +1482,6 @@ namespace input {
     platf::trackpad_update(input->client_context.get(), trackpad_input_from_packet(packet), flush_contacts);
   }
 
-  void cancel_trackpad_flush(const std::shared_ptr<input_t> &input) {
-    if (!input->trackpad_flush_timeout) {
-      return;
-    }
-
-    task_pool.cancel(input->trackpad_flush_timeout);
-    input->trackpad_flush_timeout = nullptr;
-  }
-
-  void flush_trackpad_contacts_now(const std::shared_ptr<input_t> &input) {
-    cancel_trackpad_flush(input);
-    platf::trackpad_flush_contacts(input->client_context.get());
-  }
-
-  void schedule_trackpad_flush_once(const std::shared_ptr<input_t> &input) {
-    if (input->trackpad_flush_timeout) {
-      return;
-    }
-
-    input->trackpad_flush_timeout = task_pool.pushDelayed([input]() {
-      input->trackpad_flush_timeout = nullptr;
-      platf::trackpad_flush_contacts(input->client_context.get());
-    }, 3ms).task_id;
-  }
-
   void passthrough_next_message(std::shared_ptr<input_t> input);
 
   void dispatch_input_queue(std::shared_ptr<input_t> input) {
@@ -2177,16 +2151,19 @@ namespace input {
 
     if (!trackpad_entries.empty()) {
       bool needs_flush = false;
+      bool needs_sync = false;
       for (const auto &trackpad_entry : trackpad_entries) {
         const auto trackpad_payload = (PSS_TOUCH_PACKET) (PNV_INPUT_HEADER) trackpad_entry.data();
         input::print((void *) trackpad_payload);
         switch (trackpad_payload->eventType) {
           case LI_TOUCH_EVENT_CANCEL_ALL:
+            trackpad_passthrough(input, trackpad_payload);
+            break;
           case LI_TOUCH_EVENT_UP:
           case LI_TOUCH_EVENT_CANCEL:
           case LI_TOUCH_EVENT_HOVER_LEAVE:
-            cancel_trackpad_flush(input);
-            trackpad_passthrough(input, trackpad_payload);
+            trackpad_passthrough(input, trackpad_payload, false);
+            needs_sync = true;
             break;
           default:
             trackpad_passthrough(input, trackpad_payload, false);
@@ -2198,10 +2175,12 @@ namespace input {
       if (needs_flush) {
         const auto active_contacts = platf::trackpad_active_contact_count(input->client_context.get());
         if (active_contacts >= 2 || trackpad_entries.size() >= 2) {
-          flush_trackpad_contacts_now(input);
-        } else {
-          schedule_trackpad_flush_once(input);
+          platf::trackpad_flush_contacts(input->client_context.get());
         }
+      }
+
+      if (needs_sync) {
+        platf::trackpad_sync_contacts(input->client_context.get());
       }
       return;
     }
@@ -2281,12 +2260,19 @@ namespace input {
       return;
     }
 
+    const auto trackpad_packet = util::endian::little(header.magic) == SS_TRACKPAD_MAGIC;
+
     {
       std::lock_guard<std::mutex> lg(input->input_queue_lock);
       input->input_queue.push_back(std::move(input_data));
       if (!input->input_dispatch_pending) {
         input->input_dispatch_pending = true;
-        task_pool.push(dispatch_input_queue, input);
+        if (trackpad_packet) {
+          // Defer one scheduler tick so paired pinch contacts can arrive first.
+          task_pool.pushDelayed(dispatch_input_queue, 0ms, input);
+        } else {
+          task_pool.push(dispatch_input_queue, input);
+        }
       }
     }
   }
