@@ -21,9 +21,12 @@ fi
 # Avoid upgrading system packages (e.g. dkms-nvidia) and skip CUDA runfile install.
 ./scripts/linux_build.sh --skip-package-update --skip-cuda
 
-RPM_PATH="$(find "$REPO_ROOT/build" -maxdepth 1 -name 'Sunshine-*.rpm' -print -quit)"
+RPM_PATH="$(find "$REPO_ROOT/build/cpack_artifacts" -maxdepth 1 \( -name 'Sunshine.rpm' -o -name 'Sunshine-*.rpm' \) -print -quit)"
 if [[ -z "$RPM_PATH" ]]; then
-  echo "RPM not found under $REPO_ROOT/build" >&2
+  RPM_PATH="$(find "$REPO_ROOT/build" -name '*.rpm' -type f -print -quit)"
+fi
+if [[ -z "$RPM_PATH" ]]; then
+  echo "RPM not found under $REPO_ROOT/build/cpack_artifacts or $REPO_ROOT/build" >&2
   exit 1
 fi
 
