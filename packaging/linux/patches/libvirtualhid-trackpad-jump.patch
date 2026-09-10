@@ -65,21 +65,21 @@ index efdda3f..d2954af 100644
       * @brief Get the most recently submitted touch contact.
       *
 diff --git a/src/platform/linux/uhid_backend.cpp b/src/platform/linux/uhid_backend.cpp
-index 8f01d32..f2a8c91 100644
+index 8f01d32..130210b 100644
 --- a/src/platform/linux/uhid_backend.cpp
 +++ b/src/platform/linux/uhid_backend.cpp
-@@ -84,6 +84,10 @@ namespace lvh::detail {
- 
+@@ -85,6 +85,10 @@ namespace lvh::detail {
+     constexpr auto absolute_axis_max = 65535;
      constexpr auto touch_axis_max_x = 19200;
      constexpr auto touch_axis_max_y = 10800;
 +    constexpr auto trackpad_width_mm = 69;
 +    constexpr auto trackpad_height_mm = 50;
 +    constexpr auto trackpad_axis_resolution_x = touch_axis_max_x / trackpad_width_mm;
 +    constexpr auto trackpad_axis_resolution_y = touch_axis_max_y / trackpad_height_mm;
-     constexpr auto touch_pressure_max = 255;
-     constexpr auto touch_max_contacts = 10;
-     constexpr auto touch_tracking_id_count = 65535U;
-@@ -1588,8 +1592,58 @@ namespace lvh::detail {
+     constexpr auto touch_max_contacts = 16;
+     constexpr std::uint32_t touch_tracking_id_count = 65536U;
+     constexpr auto touch_pressure_max = 253;
+@@ -1588,8 +1592,57 @@ namespace lvh::detail {
        return enable_evdev_property(device, INPUT_PROP_DIRECT, "direct touch");
      }
  
@@ -95,6 +95,7 @@ index 8f01d32..f2a8c91 100644
 +      if (const auto status = enable_evdev_code(device, EV_ABS, ABS_MT_SLOT, "touch absolute axis", &slot); !status.ok()) {
 +        return status;
 +      }
++      // Advertise resolution so libinput jump detection uses millimeters, not raw units.
 +      auto x = make_absinfo(0, touch_axis_max_x, 1, 0, trackpad_axis_resolution_x);
 +      if (const auto status = enable_evdev_code(device, EV_ABS, ABS_X, "touch absolute axis", &x); !status.ok()) {
 +        return status;
@@ -137,7 +138,7 @@ index 8f01d32..f2a8c91 100644
          return status;
        }
  
-@@ -2111,6 +2165,15 @@ namespace lvh::detail {
+@@ -2111,6 +2164,15 @@ namespace lvh::detail {
        }
  
      protected:
@@ -153,7 +154,7 @@ index 8f01d32..f2a8c91 100644
        OperationStatus create_touch_device(DeviceId id, const DeviceProfile &profile) {
          device_name_ = profile.name;
          return create_uinput_device(profile, id);
-@@ -2153,27 +2216,36 @@ namespace lvh::detail {
+@@ -2153,27 +2215,36 @@ namespace lvh::detail {
          const auto x = scale_normalized_axis(contact.x, touch_axis_max_x);
          const auto y = scale_normalized_axis(contact.y, touch_axis_max_y);
          const auto pressure = scale_normalized_axis(contact.pressure, touch_pressure_max);
@@ -198,7 +199,7 @@ index 8f01d32..f2a8c91 100644
          return sync();
        }
  
-@@ -2334,6 +2406,10 @@ namespace lvh::detail {
+@@ -2334,6 +2405,10 @@ namespace lvh::detail {
          return emit_touch_button(pressed);
        }
  
