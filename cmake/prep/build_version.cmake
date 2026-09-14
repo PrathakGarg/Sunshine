@@ -27,44 +27,57 @@ if((DEFINED ENV{BRANCH}) AND (DEFINED ENV{BUILD_VERSION}))  # cmake-lint: disabl
         set(CMAKE_PROJECT_VERSION ${PROJECT_VERSION})  # cpack will use this to set the binary versions
     endif()
 else()
-    # Generate Sunshine Version based of the git tag
+    # Generate Sunshine version from the nearest git tag when not building from CI.
     # https://github.com/nocnokneo/cmake-git-versioning-example/blob/master/LICENSE
     find_package(Git)
     if(GIT_EXECUTABLE)
         MESSAGE("${CMAKE_SOURCE_DIR}")
-        get_filename_component(SRC_DIR "${CMAKE_SOURCE_DIR}" DIRECTORY)
-        #Get current Branch
         execute_process(
-                COMMAND ${GIT_EXECUTABLE} rev-parse --abbrev-ref HEAD
-                OUTPUT_VARIABLE GIT_DESCRIBE_BRANCH
-                RESULT_VARIABLE GIT_DESCRIBE_ERROR_CODE
+                COMMAND ${GIT_EXECUTABLE} describe --tags --always --match v[0-9]*
+                WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+                OUTPUT_VARIABLE GIT_TAG_DESCRIBE
+                RESULT_VARIABLE GIT_TAG_DESCRIBE_RESULT
                 OUTPUT_STRIP_TRAILING_WHITESPACE
         )
-        # Gather current commit
-        execute_process(
-                COMMAND ${GIT_EXECUTABLE} rev-parse --short HEAD
-                OUTPUT_VARIABLE GIT_DESCRIBE_VERSION
-                RESULT_VARIABLE GIT_DESCRIBE_ERROR_CODE
-                OUTPUT_STRIP_TRAILING_WHITESPACE
-        )
-        # Check if Dirty
-        execute_process(
-                COMMAND ${GIT_EXECUTABLE} diff --quiet --exit-code
-                RESULT_VARIABLE GIT_IS_DIRTY
-                OUTPUT_STRIP_TRAILING_WHITESPACE
-        )
-        if(NOT GIT_DESCRIBE_ERROR_CODE)
-            MESSAGE("Sunshine Branch: ${GIT_DESCRIBE_BRANCH}")
-            if(NOT GIT_DESCRIBE_BRANCH STREQUAL "master")
-                set(PROJECT_VERSION ${PROJECT_VERSION}-${GIT_DESCRIBE_VERSION})
-                MESSAGE("Sunshine Version: ${GIT_DESCRIBE_VERSION}")
-            endif()
-            if(GIT_IS_DIRTY)
-                set(PROJECT_VERSION ${PROJECT_VERSION}-dirty)
-                MESSAGE("Git tree is dirty!")
-            endif()
+        if(GIT_TAG_DESCRIBE_RESULT EQUAL 0 AND GIT_TAG_DESCRIBE)
+            string(REGEX REPLACE "^v" "" PROJECT_VERSION "${GIT_TAG_DESCRIBE}")
+            set(CMAKE_PROJECT_VERSION "${PROJECT_VERSION}")
+            MESSAGE("Sunshine Version from git describe: ${PROJECT_VERSION}")
         else()
-            MESSAGE(ERROR ": Got git error while fetching tags: ${GIT_DESCRIBE_ERROR_CODE}")
+            # Fall back to commit suffixes when no release tag is available.
+            execute_process(
+                    COMMAND ${GIT_EXECUTABLE} rev-parse --abbrev-ref HEAD
+                    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+                    OUTPUT_VARIABLE GIT_DESCRIBE_BRANCH
+                    RESULT_VARIABLE GIT_DESCRIBE_ERROR_CODE
+                    OUTPUT_STRIP_TRAILING_WHITESPACE
+            )
+            execute_process(
+                    COMMAND ${GIT_EXECUTABLE} rev-parse --short HEAD
+                    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+                    OUTPUT_VARIABLE GIT_DESCRIBE_VERSION
+                    RESULT_VARIABLE GIT_DESCRIBE_ERROR_CODE
+                    OUTPUT_STRIP_TRAILING_WHITESPACE
+            )
+            execute_process(
+                    COMMAND ${GIT_EXECUTABLE} diff --quiet --exit-code
+                    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+                    RESULT_VARIABLE GIT_IS_DIRTY
+                    OUTPUT_STRIP_TRAILING_WHITESPACE
+            )
+            if(NOT GIT_DESCRIBE_ERROR_CODE)
+                MESSAGE("Sunshine Branch: ${GIT_DESCRIBE_BRANCH}")
+                if(NOT GIT_DESCRIBE_BRANCH STREQUAL "master")
+                    set(PROJECT_VERSION ${PROJECT_VERSION}-${GIT_DESCRIBE_VERSION})
+                    MESSAGE("Sunshine Version: ${GIT_DESCRIBE_VERSION}")
+                endif()
+                if(GIT_IS_DIRTY)
+                    set(PROJECT_VERSION ${PROJECT_VERSION}-dirty)
+                    MESSAGE("Git tree is dirty!")
+                endif()
+            else()
+                MESSAGE(ERROR ": Got git error while fetching tags: ${GIT_DESCRIBE_ERROR_CODE}")
+            endif()
         endif()
     else()
         MESSAGE(WARNING ": Git not found, cannot find git version")
